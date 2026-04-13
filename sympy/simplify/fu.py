@@ -210,6 +210,10 @@ from sympy.strategies.tree import greedy
 from sympy.strategies.core import identity, debug
 from sympy.polys.polytools import factor
 from sympy.ntheory.factor_ import perfect_power
+from sympy.functions.elementary.exponential import exp
+from sympy.functions.elementary.miscellaneous import sqrt
+from sympy.functions.special.delta_functions import DiracDelta
+from sympy.functions import sinc
 
 from sympy import SYMPY_DEBUG
 
