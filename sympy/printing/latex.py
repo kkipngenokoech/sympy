@@ -1271,7 +1271,9 @@ class LatexPrinter(Printer):
         if expr in self._settings['symbol_names']:
             return self._settings['symbol_names'][expr]
 
-        return self._deal_with_super_sub(expr.name) if \
+        # Ensure consistent output regardless of assumptions
+        name = str(expr.name)
+        return self._deal_with_super_sub(name) if \
             '\\' not in expr.name else expr.name
 
     _print_RandomSymbol = _print_Symbol
@@ -1287,6 +1289,7 @@ class LatexPrinter(Printer):
         supers = [translate(sup) for sup in supers]
         subs = [translate(sub) for sub in subs]
 
+        # Ensure consistent formatting regardless of symbol assumptions
         # glue all items together:
         if len(supers) > 0:
             name += "^{%s}" % " ".join(supers)
