@@ -43,6 +43,7 @@ known_functions = {
     "atanh": "atanh",
     "floor": "floor",
     "ceiling": "ceil",
+    "sinc": lambda printer, args: "(({0}) != 0 ? sin({0})/({0}) : 1)".format(printer._print(args[0])),
 }
 
 # These are the core reserved words in the C language. Taken from:
