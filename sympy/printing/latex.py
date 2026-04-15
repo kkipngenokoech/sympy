@@ -190,9 +190,18 @@ class LatexPrinter(Printer):
         printed, False otherwise. For example: a + b => True; a => False;
         10 => False; -10 => True.
         """
-        return not ((expr.is_Integer and expr.is_nonnegative)
-                    or (expr.is_Atom and (expr is not S.NegativeOne
-                                          and expr.is_Rational is False)))
+        # Don't let assumptions affect basic bracketing decisions
+        # Check the structural properties rather than assumption-dependent ones
+        if expr.is_Integer:
+            try:
+                # Use structural check rather than assumption-dependent is_nonnegative
+                return expr < 0
+            except (TypeError, AttributeError):
+                return False
+        elif expr.is_Atom:
+            return expr is S.NegativeOne
+        else:
+            return True
 
     def _needs_function_brackets(self, expr):
         """
