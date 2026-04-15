@@ -11,6 +11,8 @@ from sympy.core.function import count_ops, _mexpand
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from sympy.functions.elementary.hyperbolic import HyperbolicFunction
 from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth
+from sympy.functions.elementary.miscellaneous import sqrt
+from sympy.functions.special.hyper import sinc
 
 from sympy.strategies.core import identity
 from sympy.strategies.tree import greedy
