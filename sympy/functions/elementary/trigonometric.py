@@ -16,10 +16,111 @@ from sympy.functions.elementary.hyperbolic import (acoth, asinh, atanh, cosh,
 from sympy.sets.sets import FiniteSet
 from sympy.utilities.iterables import numbered_symbols
 from sympy.core.compatibility import range
+from sympy.core.mul import Mul
+from sympy.core.power import Pow
 
 ###############################################################################
 ########################## TRIGONOMETRIC FUNCTIONS ############################
 ###############################################################################
+
+
+def exp_to_trig(expr):
+    """
+    Convert exponential expressions to trigonometric functions.
+    
+    This function recognizes common patterns like:
+    - (exp(I*x) - exp(-I*x))/(2*I) -> sin(x)
+    - (exp(I*x) + exp(-I*x))/2 -> cos(x)
+    - sin(x)/x -> sinc(x) when appropriate
+    
+    Examples
+    ========
+    
+    >>> from sympy import *
+    >>> from sympy.functions.elementary.trigonometric import exp_to_trig
+    >>> x = Symbol('x')
+    >>> expr = (exp(I*x) - exp(-I*x))/(2*I)
+    >>> exp_to_trig(expr)
+    sin(x)
+    >>> expr = (exp(I*x) + exp(-I*x))/2
+    >>> exp_to_trig(expr)
+    cos(x)
+    """
+    from sympy import I, simplify, expand
+    
+    expr = sympify(expr)
+    
+    # Handle division cases
+    if expr.is_Mul:
+        # Look for patterns like (exp(I*x) - exp(-I*x))/(2*I)
+        numer = None
+        denom = None
+        
+        # Extract numerator and denominator
+        for arg in expr.args:
+            if arg.is_Pow and arg.exp == -1:
+                if denom is None:
+                    denom = arg.base
+                else:
+                    denom = denom * arg.base
+            else:
+                if numer is None:
+                    numer = arg
+                else:
+                    numer = numer * arg
+        
+        if numer is None:
+            numer = S.One
+        if denom is None:
+            denom = S.One
+            
+        # Check for sin pattern: (exp(I*x) - exp(-I*x))/(2*I)
+        if denom == 2*I and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term2.args[0] == -term1.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return sin(x)
+        
+        # Check for cos pattern: (exp(I*x) + exp(-I*x))/2
+        if denom == 2 and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term1.args[0] == -term2.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return cos(x)
+    
+    # Handle direct division cases
+    if hasattr(expr, 'as_numer_denom'):
+        numer, denom = expr.as_numer_denom()
+        
+        # Check for sin pattern: (exp(I*x) - exp(-I*x))/(2*I)
+        if denom == 2*I and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term2.args[0] == -term1.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return sin(x)
+        
+        # Check for cos pattern: (exp(I*x) + exp(-I*x))/2
+        if denom == 2 and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term1.args[0] == -term2.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return cos(x)
+        
+        # Check for sinc pattern: sin(x)/x
+        if (numer.func == sin and len(numer.args) == 1 and 
+            denom == numer.args[0]):
+            from sympy.functions.elementary.miscellaneous import sinc
+            return sinc(numer.args[0])
+    
+    return expr
 
 
 class TrigonometricFunction(Function):
