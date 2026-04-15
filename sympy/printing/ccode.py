@@ -152,6 +152,16 @@ class CCodePrinter(CodePrinter):
             return 'pow(%s, %s)' % (self._print(expr.base),
                                  self._print(expr.exp))
 
+    def _print_sinc(self, expr):
+        from sympy.functions.elementary.trigonometric import sin
+        from sympy.core.numbers import pi
+        # sinc(x) = sin(pi*x)/(pi*x) for x != 0, 1 for x = 0
+        # In C, we implement as sin(pi*x)/(pi*x)
+        # The division by zero case should be handled by the user
+        arg = expr.args[0]
+        pi_arg = pi * arg
+        return '(sin(%s)/(%s))' % (self._print(pi_arg), self._print(pi_arg))
+
     def _print_Rational(self, expr):
         p, q = int(expr.p), int(expr.q)
         return '%d.0L/%d.0L' % (p, q)
