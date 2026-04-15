@@ -10,7 +10,7 @@ from sympy.core.numbers import I, Integer
 from sympy.core.function import count_ops, _mexpand
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from sympy.functions.elementary.hyperbolic import HyperbolicFunction
-from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth
+from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth, sinc
 
 from sympy.strategies.core import identity
 from sympy.strategies.tree import greedy
@@ -423,6 +423,62 @@ def trigsimp_groebner(expr, hints=[], quick=False, order="grlex",
 
 
 _trigs = (TrigonometricFunction, HyperbolicFunction)
+
+
+def _exp_to_trig(expr):
+    """
+    Convert exponential expressions to trigonometric forms.
+    
+    Recognizes patterns like:
+    - (exp(I*x) - exp(-I*x))/(2*I) -> sin(x)
+    - (exp(I*x) + exp(-I*x))/2 -> cos(x)
+    - (exp(I*x) - exp(-I*x))/(2*I*x) -> sinc(x)
+    """
+    from sympy import Wild, collect, simplify, factor
+    from sympy.core.numbers import I
+    
+    if not expr.has(exp):
+        return expr
+        
+    # Define wildcards
+    a = Wild('a')
+    x = Wild('x')
+    
+    # Pattern for (exp(I*a*x) - exp(-I*a*x))/(2*I) -> sin(a*x)
+    pattern1 = (exp(I*a*x) - exp(-I*a*x))/(2*I)
+    match1 = expr.match(pattern1)
+    if match1:
+        return sin(match1[a]*match1[x])
+    
+    # Pattern for (exp(I*a*x) + exp(-I*a*x))/2 -> cos(a*x)
+    pattern2 = (exp(I*a*x) + exp(-I*a*x))/2
+    match2 = expr.match(pattern2)
+    if match2:
+        return cos(match2[a]*match2[x])
+    
+    # Pattern for (exp(I*a*x) - exp(-I*a*x))/(2*I*x) -> sinc(a*x)
+    pattern3 = (exp(I*a*x) - exp(-I*a*x))/(2*I*x)
+    match3 = expr.match(pattern3)
+    if match3:
+        return sinc(match3[a]*match3[x])
+    
+    # Pattern for (exp(I*x) - exp(-I*x))/(2*I*a*x) -> sinc(x)/a
+    pattern4 = (exp(I*x) - exp(-I*x))/(2*I*a*x)
+    match4 = expr.match(pattern4)
+    if match4:
+        return sinc(match4[x])/match4[a]
+    
+    # Handle more complex expressions by applying to subexpressions
+    if expr.is_Add:
+        return Add(*[_exp_to_trig(arg) for arg in expr.args])
+    elif expr.is_Mul:
+        return Mul(*[_exp_to_trig(arg) for arg in expr.args])
+    elif expr.is_Pow:
+        return expr.func(_exp_to_trig(expr.base), expr.exp)
+    elif hasattr(expr, 'args') and expr.args:
+        return expr.func(*[_exp_to_trig(arg) for arg in expr.args])
+    
+    return expr
 
 
 def trigsimp(expr, **opts):
