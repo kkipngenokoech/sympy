@@ -233,7 +233,15 @@ class BlockMatrix(MatrixExpr):
         return self._eval_transpose()
 
     def _entry(self, i, j, **kwargs):
+        from sympy import Symbol, Integer
+        
+        # Check if indices are symbolic and could be ambiguous
+        if self._indices_are_ambiguous(i, j):
+            # Return the original expression without simplification
+            return super(BlockMatrix, self).__getitem__((i, j))
+        
         # Find row entry
+        orig_i, orig_j = i, j
         for row_block, numrows in enumerate(self.rowblocksizes):
             if (i < numrows) != False:
                 break
@@ -245,6 +253,29 @@ class BlockMatrix(MatrixExpr):
             else:
                 j -= numcols
         return self.blocks[row_block, col_block][i, j]
+    
+    def _indices_are_ambiguous(self, i, j):
+        """Check if symbolic indices could map to multiple blocks"""
+        from sympy import Symbol, Integer, sympify
+        
+        # Convert to sympy objects if needed
+        i = sympify(i)
+        j = sympify(j)
+        
+        # If indices are concrete integers, they're not ambiguous
+        if i.is_Integer and j.is_Integer:
+            return False
+            
+        # If indices contain symbols, check if they could span multiple blocks
+        if i.has(Symbol) and len(self.rowblocksizes) > 1:
+            # For symbolic row index, check if it could access multiple row blocks
+            return True
+            
+        if j.has(Symbol) and len(self.colblocksizes) > 1:
+            # For symbolic column index, check if it could access multiple column blocks  
+            return True
+            
+        return False
 
     @property
     def is_Identity(self):
