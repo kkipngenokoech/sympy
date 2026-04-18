@@ -392,24 +392,38 @@ def apart_list_full_decomposition(P, Q, dummygen):
             subs += [ (U[j - 1], b.diff(x, j) / j) ]
 
         for j in range(0, n):
-            P, Q = cancel(H[j]).as_numer_denom()
+            P_expr, Q_expr = cancel(H[j]).as_numer_denom()
 
             for i in range(0, j + 1):
-                P = P.subs(*subs[j - i])
+                P_expr = P_expr.subs(*subs[j - i])
 
-            Q = Q.subs(*subs[0])
+            Q_expr = Q_expr.subs(*subs[0])
 
-            P = Poly(P, x)
-            Q = Poly(Q, x)
+            try:
+                P_poly = Poly(P_expr, x)
+                Q_poly = Poly(Q_expr, x)
+            except PolynomialError:
+                # Handle cases where conversion to Poly fails
+                continue
 
-            G = P.gcd(d)
+            G = P_poly.gcd(d)
             D = d.quo(G)
 
-            B, g = Q.half_gcdex(D)
-            b = (P * B.quo(g)).rem(D)
+            if D.degree() == 0:
+                # Skip if D is a constant
+                continue
+
+            try:
+                B, g = Q_poly.half_gcdex(D)
+                if g.is_zero:
+                    continue
+                b_poly = (P_poly * B.quo(g)).rem(D)
+            except (ZeroDivisionError, PolynomialError):
+                # Handle division by zero or other polynomial errors
+                continue
 
             Dw = D.subs(x, next(dummygen))
-            numer = Lambda(a, b.as_expr().subs(x, a))
+            numer = Lambda(a, b_poly.as_expr().subs(x, a))
             denom = Lambda(a, (x - a))
             exponent = n-j
 
