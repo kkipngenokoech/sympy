@@ -6215,7 +6215,29 @@ def sqf_list(f, *gens, **args):
     (2, [(x + 1, 2), (x + 2, 3)])
 
     """
-    return _generic_factor_list(f, gens, args, method='sqf')
+    coeff, factors = _generic_factor_list(f, gens, args, method='sqf')
+    
+    # Group factors by multiplicity and combine them
+    from collections import defaultdict
+    multiplicity_groups = defaultdict(list)
+    
+    for factor, mult in factors:
+        multiplicity_groups[mult].append(factor)
+    
+    # Combine factors with the same multiplicity
+    combined_factors = []
+    for mult in sorted(multiplicity_groups.keys()):
+        factor_list = multiplicity_groups[mult]
+        if len(factor_list) == 1:
+            combined_factors.append((factor_list[0], mult))
+        else:
+            # Multiply all factors with the same multiplicity
+            combined_factor = factor_list[0]
+            for factor in factor_list[1:]:
+                combined_factor = combined_factor * factor
+            combined_factors.append((combined_factor, mult))
+    
+    return coeff, combined_factors
 
 
 @public
