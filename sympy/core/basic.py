@@ -323,11 +323,15 @@ class Basic(with_metaclass(ManagedProperties)):
         tself = type(self)
         tother = type(other)
         if tself is not tother:
-            try:
-                other = _sympify(other)
-                tother = type(other)
-            except SympifyError:
-                return NotImplemented
+            # Only attempt sympification if other is not already a Basic object
+            # and avoid any eval-based comparisons that could be unsafe
+            if not isinstance(other, Basic):
+                try:
+                    other = _sympify(other)
+                    tother = type(other)
+                except SympifyError:
+                    # If sympification fails, objects are not equal
+                    return False
 
             # As long as we have the ordering of classes (sympy.core),
             # comparing types will be slow in Python 2, because it uses
