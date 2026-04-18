@@ -210,6 +210,24 @@ def test_extract():
     raises(IndexError, lambda: m.extract([0], [3]))
 
 def test_hstack():
+    # Test regression for issue #13031 - hstack with 0-row matrices
+    from sympy import Matrix
+    
+    # Test case from issue: Matrix.zeros(0,0) hstacked should maintain proper dimensions
+    M1 = Matrix.zeros(0, 0)
+    M2 = Matrix.zeros(0, 3) 
+    M3 = Matrix.zeros(0, 3)
+    result = Matrix.hstack(M1, M2, M3)
+    assert result.shape == (0, 6), f"Expected (0, 6), got {result.shape}"
+    
+    # Test case: Matrix.zeros(1,0) hstacked should work correctly
+    M1 = Matrix.zeros(1, 0)
+    M2 = Matrix.zeros(1, 3)
+    M3 = Matrix.zeros(1, 3) 
+    result = Matrix.hstack(M1, M2, M3)
+    assert result.shape == (1, 6), f"Expected (1, 6), got {result.shape}"
+
+def test_hstack_original():
     m = ShapingOnlyMatrix(4, 3, lambda i, j: i*3 + j)
     m2 = ShapingOnlyMatrix(3, 4, lambda i, j: i*3 + j)
     assert m == m.hstack(m)
@@ -230,6 +248,24 @@ def test_hstack():
     assert m.rows == 0 and m.cols == 6
 
 def test_vstack():
+    # Test regression for issue #13031 - vstack with 0-column matrices
+    from sympy import Matrix
+    
+    # Test case: Matrix.zeros(0,0) vstacked should maintain proper dimensions
+    M1 = Matrix.zeros(0, 0)
+    M2 = Matrix.zeros(3, 0)
+    M3 = Matrix.zeros(3, 0)
+    result = Matrix.vstack(M1, M2, M3)
+    assert result.shape == (6, 0), f"Expected (6, 0), got {result.shape}"
+    
+    # Test case: Matrix.zeros(0,1) vstacked should work correctly  
+    M1 = Matrix.zeros(0, 1)
+    M2 = Matrix.zeros(3, 1)
+    M3 = Matrix.zeros(3, 1)
+    result = Matrix.vstack(M1, M2, M3)
+    assert result.shape == (6, 1), f"Expected (6, 1), got {result.shape}"
+
+def test_vstack_original():
     m = ShapingOnlyMatrix(4, 3, lambda i, j: i*3 + j)
     m2 = ShapingOnlyMatrix(3, 4, lambda i, j: i*3 + j)
     assert m == m.vstack(m)
