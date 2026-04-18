@@ -203,7 +203,10 @@ def powsimp(expr, deep=False, combine='all', force=False, measure=count_ops):
         _n = S.NegativeOne
         for i, (b, e) in enumerate(be):
             if ((-b).is_Symbol or b.is_Add) and -b in c_powers:
-                if (b.is_positive in (0, 1) or e.is_integer):
+                # Only combine if we know the base is positive or the exponent is integer
+                # Don't combine when base could be negative and exponent is symbolic/complex
+                # as this can change branch cuts
+                if (b.is_positive or (b.is_positive in (0, 1) and e.is_integer)):
                     c_powers[-b] += c_powers.pop(b)
                     if _n in c_powers:
                         c_powers[_n] += e
