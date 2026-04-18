@@ -423,6 +423,7 @@ setup(ext_modules=cythonize(ext_mods, **cy_opts))
                 py_args.append(arg)
         # Find arguments that are array dimensions. These can be inferred
         # locally in the Cython code.
+        for arg in args:
             if isinstance(arg, (InputArgument, InOutArgument)) and arg.dimensions:
                 dims = [d[1] + 1 for d in arg.dimensions]
                 sym_dims = [(i, d) for (i, d) in enumerate(dims) if
