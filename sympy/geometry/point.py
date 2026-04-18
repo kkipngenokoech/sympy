@@ -278,6 +278,13 @@ class Point(GeometryEntity):
         coords = [simplify(x*factor) for x in self.args]
         return Point(coords, evaluate=False)
 
+    def __rmul__(self, factor):
+        """Multiply point's coordinates by a factor (right multiplication).
+        
+        This method handles cases like `number * point` by delegating to __mul__.
+        """
+        return self.__mul__(factor)
+
     def __neg__(self):
         """Negate the point."""
         coords = [-x for x in self.args]
