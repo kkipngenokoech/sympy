@@ -138,10 +138,17 @@ class ImmutableDenseNDimArray(DenseNDimArray, ImmutableNDimArray): # type: ignor
 
     @classmethod
     def _new(cls, iterable, shape, **kwargs):
-        shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+        # Handle empty array case
+        if shape is None and hasattr(iterable, '__len__') and len(iterable) == 0:
+            shape = (0,)
+            flat_list = []
+        else:
+            shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+            flat_list = flatten(flat_list)
+        
         shape = Tuple(*map(_sympify, shape))
-        cls._check_special_bounds(flat_list, shape)
-        flat_list = flatten(flat_list)
+        if flat_list:  # Only check bounds if we have elements
+            cls._check_special_bounds(flat_list, shape)
         flat_list = Tuple(*flat_list)
         self = Basic.__new__(cls, flat_list, shape, **kwargs)
         self._shape = shape
@@ -167,8 +174,14 @@ class MutableDenseNDimArray(DenseNDimArray, MutableNDimArray):
 
     @classmethod
     def _new(cls, iterable, shape, **kwargs):
-        shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
-        flat_list = flatten(flat_list)
+        # Handle empty array case
+        if shape is None and hasattr(iterable, '__len__') and len(iterable) == 0:
+            shape = (0,)
+            flat_list = []
+        else:
+            shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+            flat_list = flatten(flat_list)
+        
         self = object.__new__(cls)
         self._shape = shape
         self._array = list(flat_list)
