@@ -175,7 +175,8 @@ class UnitSystem(_QuantityMapper):
             for addend in expr.args[1:]:
                 addend_factor, addend_dim = \
                     self._collect_factor_and_dimension(addend)
-                if dim != addend_dim:
+                # Check if dimensions are equivalent by simplifying their ratio
+                if not self._are_dimensions_equivalent(dim, addend_dim):
                     raise ValueError(
                         'Dimension of "{}" is {}, '
                         'but it should be {}'.format(
@@ -197,6 +198,23 @@ class UnitSystem(_QuantityMapper):
             return S.One, expr
         else:
             return expr, Dimension(1)
+
+    def _are_dimensions_equivalent(self, dim1, dim2):
+        """
+        Check if two dimensions are equivalent by comparing their simplified forms.
+        """
+        if dim1 == dim2:
+            return True
+        
+        # Try to simplify the ratio of dimensions
+        try:
+            from sympy import simplify
+            ratio = simplify(dim1 / dim2)
+            # If the ratio simplifies to 1, the dimensions are equivalent
+            return ratio == 1 or (hasattr(ratio, 'is_dimensionless') and ratio.is_dimensionless)
+        except:
+            # If simplification fails, fall back to direct comparison
+            return dim1 == dim2
 
     def get_units_non_prefixed(self) -> tSet[Quantity]:
         """
