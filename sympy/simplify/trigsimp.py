@@ -604,6 +604,46 @@ def exptrigsimp(expr):
 
 #-------------------- the old trigsimp routines ---------------------
 
+def _handle_sqrt_trig_squared(expr):
+    """
+    Handle sqrt(trig_func(x)**2) patterns.
+    For complex variables, sqrt(sin(x)**2) = |sin(x)|, not sin(x).
+    Only simplify to trig_func(x) if the argument is known to be real.
+    """
+    from sympy import sqrt, Abs, sin, cos, tan, cot, sec, csc
+    from sympy.core.assumptions import ask, Q
+    
+    if not expr.has(sqrt):
+        return expr
+    
+    def _replace_sqrt_trig_squared(e):
+        if e.is_Atom:
+            return e
+        
+        # Handle sqrt(trig_func(x)**2)
+        if (e.func == sqrt and len(e.args) == 1 and 
+            e.args[0].is_Pow and e.args[0].exp == 2):
+            
+            base = e.args[0].base
+            if isinstance(base, (sin, cos, tan, cot, sec, csc)):
+                arg = base.args[0]
+                # Only simplify sqrt(trig_func(x)**2) -> trig_func(x) if x is real
+                # or if trig_func(x) is known to be real
+                if (ask(Q.real(arg)) or ask(Q.real(base))):
+                    return Abs(base)
+                else:
+                    # For complex arguments, keep as sqrt(trig_func(x)**2)
+                    return e
+        
+        # Recursively handle subexpressions
+        new_args = [_replace_sqrt_trig_squared(arg) for arg in e.args]
+        if new_args != list(e.args):
+            return e.func(*new_args)
+        return e
+    
+    return _replace_sqrt_trig_squared(expr)
+
+
 def trigsimp_old(expr, **opts):
     """
     reduces expression by using known trig identities
