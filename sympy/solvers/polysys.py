@@ -51,6 +51,26 @@ def solve_poly_system(seq, *gens, **args):
     except PolificationFailed as exc:
         raise ComputationFailed('solve_poly_system', len(seq), exc)
 
+    # Check for underdetermined systems that may have infinite solutions
+    # Count the number of variables that actually appear in the polynomials
+    all_vars = set()
+    for poly in polys:
+        all_vars.update(poly.free_symbols)
+    
+    # If we have fewer non-trivial equations than variables, and some variables
+    # don't appear in any equation, we likely have infinite solutions
+    non_trivial_polys = [p for p in polys if not p.is_zero]
+    if len(non_trivial_polys) < len(opt.gens):
+        # Check if any variables are completely unconstrained
+        constrained_vars = set()
+        for poly in non_trivial_polys:
+            constrained_vars.update(poly.free_symbols)
+        
+        unconstrained_vars = set(opt.gens) - constrained_vars
+        if unconstrained_vars:
+            # System has infinite solutions due to unconstrained variables
+            return None
+
     if len(polys) == len(opt.gens) == 2:
         f, g = polys
 
