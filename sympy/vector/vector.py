@@ -19,6 +19,15 @@ class Vector(BasisDependent):
     is_Vector = True
     _op_priority = 12.0
 
+    def _sympystr(self, printer):
+        """String representation for SymPy printing."""
+        return self.__str__(printer)
+
+    def _pretty(self, printer):
+        """Pretty printing representation."""
+        from sympy.printing.pretty.stringpict import prettyForm
+        return prettyForm(self.__str__(printer))
+
     @property
     def components(self):
         """
@@ -376,7 +385,15 @@ class BaseVector(Vector, AtomicExpr):
         return {self}
 
     __repr__ = __str__
-    _sympystr = __str__
+    
+    def _sympystr(self, printer):
+        """String representation for SymPy printing."""
+        return self._name
+    
+    def _pretty(self, printer):
+        """Pretty printing representation."""
+        from sympy.printing.pretty.stringpict import prettyForm
+        return prettyForm(self._pretty_form)
 
 
 class VectorAdd(BasisDependentAdd, Vector):
@@ -401,7 +418,15 @@ class VectorAdd(BasisDependentAdd, Vector):
         return ret_str[:-3]
 
     __repr__ = __str__
-    _sympystr = __str__
+    
+    def _sympystr(self, printer):
+        """String representation for SymPy printing."""
+        return self.__str__(printer)
+    
+    def _pretty(self, printer):
+        """Pretty printing representation."""
+        from sympy.printing.pretty.stringpict import prettyForm
+        return prettyForm(self.__str__(printer))
 
 
 class VectorMul(BasisDependentMul, Vector):
@@ -424,6 +449,15 @@ class VectorMul(BasisDependentMul, Vector):
         this VectorMul.
         """
         return self._measure_number
+    
+    def _sympystr(self, printer):
+        """String representation for SymPy printing."""
+        return self.__str__(printer)
+    
+    def _pretty(self, printer):
+        """Pretty printing representation."""
+        from sympy.printing.pretty.stringpict import prettyForm
+        return prettyForm(self.__str__(printer))
 
 
 class VectorZero(BasisDependentZero, Vector):
@@ -438,6 +472,15 @@ class VectorZero(BasisDependentZero, Vector):
     def __new__(cls):
         obj = BasisDependentZero.__new__(cls)
         return obj
+    
+    def _sympystr(self, printer):
+        """String representation for SymPy printing."""
+        return '0'
+    
+    def _pretty(self, printer):
+        """Pretty printing representation."""
+        from sympy.printing.pretty.stringpict import prettyForm
+        return prettyForm(self._pretty_form)
 
 
 class Cross(Vector):
