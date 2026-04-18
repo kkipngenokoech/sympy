@@ -568,6 +568,12 @@ class PythonCodePrinter(AbstractPythonCodePrinter):
         else:
             return name
 
+    def _print_Tuple(self, expr):
+        if len(expr) == 1:
+            return "({},)".format(self._print(expr[0]))
+        else:
+            return "({})".format(", ".join(self._print(a) for a in expr))
+
     _print_lowergamma = CodePrinter._print_not_supported
     _print_uppergamma = CodePrinter._print_not_supported
     _print_fresnelc = CodePrinter._print_not_supported
