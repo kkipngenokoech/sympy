@@ -265,6 +265,14 @@ class sinh(HyperbolicFunction):
         return arg.is_finite
 
     def _eval_is_zero(self):
+        # cosh(x) is never zero for any finite x (real or complex)
+        arg = self.args[0]
+        if arg.is_finite:
+            return False
+        # For infinite arguments, cosh is also not zero
+        return False
+
+    def _eval_is_zero(self):
         arg = self.args[0]
         if arg.is_zero:
             return True
