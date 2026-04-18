@@ -309,6 +309,30 @@ def _refine_reim(expr, assumptions):
     return None
 
 
+def refine_arg(expr, assumptions):
+    """
+    Handler for complex argument.
+
+    Examples
+    ========
+
+    >>> from sympy.assumptions.refine import refine_arg
+    >>> from sympy import Q, arg
+    >>> from sympy.abc import x
+    >>> refine_arg(arg(x), Q.positive(x))
+    0
+    >>> refine_arg(arg(x), Q.negative(x))
+    pi
+    """
+    from sympy import S
+    arg_expr = expr.args[0]
+    if ask(Q.positive(arg_expr), assumptions):
+        return S.Zero
+    if ask(Q.negative(arg_expr), assumptions):
+        return S.Pi
+    return expr
+
+
 def refine_sign(expr, assumptions):
     """
     Handler for sign.
@@ -377,6 +401,7 @@ handlers_dict = {
     'Abs': refine_abs,
     'Pow': refine_Pow,
     'atan2': refine_atan2,
+    'arg': refine_arg,
     're': refine_re,
     'im': refine_im,
     'sign': refine_sign,
