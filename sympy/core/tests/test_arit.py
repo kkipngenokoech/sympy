@@ -1498,6 +1498,23 @@ def test_issue_5919():
 
 
 def test_Mod():
+    from sympy import S
+    # Test that Mod(x**2, x) is 0 only when x is integer
+    x = Symbol('x', integer=True)
+    assert Mod(x**2, x) == 0
+    
+    # Test that Mod(x**2, x) is not simplified when x is not known to be integer
+    y = Symbol('y')
+    assert Mod(y**2, y) != 0
+    
+    # Test specific non-integer case
+    assert Mod(S(1.5)**2, S(1.5)) == S(0.75)
+    
+    # Test negative integer case
+    z = Symbol('z', integer=True)
+    assert Mod(z**2, z) == 0
+
+def test_Mod_original():
     assert Mod(x, 1).func is Mod
     assert pi % pi == S.Zero
     assert Mod(5, 3) == 2
