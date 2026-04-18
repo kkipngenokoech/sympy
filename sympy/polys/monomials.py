@@ -114,34 +114,34 @@ def itermonomials(variables, max_degrees, min_degrees=None):
         if min_degree > max_degree:
             return
         if not variables or max_degree == 0:
-            yield S.One
+            if min_degree <= 0:
+                yield S.One
             return
         # Force to list in case of passed tuple or other incompatible collection
-        variables = list(variables) + [S.One]
+        variables = list(variables)
         if all(variable.is_commutative for variable in variables):
-            monomials_list_comm = []
-            for item in combinations_with_replacement(variables, max_degree):
-                powers = dict()
-                for variable in variables:
-                    powers[variable] = 0
-                for variable in item:
-                    if variable != 1:
-                        powers[variable] += 1
-                if max(powers.values()) >= min_degree:
-                    monomials_list_comm.append(Mul(*item))
-            yield from set(monomials_list_comm)
+            monomials_set_comm = set()
+            # Generate monomials for each degree from min_degree to max_degree
+            for degree in range(min_degree, max_degree + 1):
+                if degree == 0:
+                    monomials_set_comm.add(S.One)
+                else:
+                    # Use combinations_with_replacement to generate all combinations
+                    # of variables that sum to the current degree
+                    for item in combinations_with_replacement(variables, degree):
+                        monomials_set_comm.add(Mul(*item))
+            yield from monomials_set_comm
         else:
-            monomials_list_non_comm = []
-            for item in product(variables, repeat=max_degree):
-                powers = dict()
-                for variable in variables:
-                    powers[variable] = 0
-                for variable in item:
-                    if variable != 1:
-                        powers[variable] += 1
-                if max(powers.values()) >= min_degree:
-                    monomials_list_non_comm.append(Mul(*item))
-            yield from set(monomials_list_non_comm)
+            monomials_set_non_comm = set()
+            # Generate monomials for each degree from min_degree to max_degree
+            for degree in range(min_degree, max_degree + 1):
+                if degree == 0:
+                    monomials_set_non_comm.add(S.One)
+                else:
+                    # Use product to generate all permutations for non-commutative case
+                    for item in product(variables, repeat=degree):
+                        monomials_set_non_comm.add(Mul(*item))
+            yield from monomials_set_non_comm
     else:
         if any(min_degrees[i] > max_degrees[i] for i in range(n)):
             raise ValueError('min_degrees[i] must be <= max_degrees[i] for all i')
