@@ -200,7 +200,7 @@ class Symbol(AtomicExpr, Boolean):
 
     is_comparable = False
 
-    __slots__ = ('name',)
+    __slots__ = ()
 
     is_Symbol = True
     is_symbol = True
