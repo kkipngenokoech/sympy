@@ -83,18 +83,20 @@ class Prefix(Expr):
         if not isinstance(other, (Quantity, Prefix)):
             return super().__mul__(other)
 
-        fact = self.scale_factor * other.scale_factor
-
-        if fact == 1:
-            return 1
-        elif isinstance(other, Prefix):
+        if isinstance(other, Prefix):
+            # Handle prefix * prefix case
+            fact = self.scale_factor * other.scale_factor
+            if fact == 1:
+                return 1
             # simplify prefix
             for p in PREFIXES:
                 if PREFIXES[p].scale_factor == fact:
                     return PREFIXES[p]
             return fact
-
-        return self.scale_factor * other
+        else:
+            # Handle prefix * quantity case - let the quantity handle the multiplication
+            # This ensures proper unit creation rather than just scaling
+            return other.__rmul__(self)
 
     def __truediv__(self, other):
         if not hasattr(other, "scale_factor"):
