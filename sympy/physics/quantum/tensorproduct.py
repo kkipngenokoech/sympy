@@ -246,7 +246,15 @@ class TensorProduct(Expr):
             if isinstance(args[i], Add):
                 for aa in args[i].args:
                     tp = TensorProduct(*args[:i] + (aa,) + args[i + 1:])
-                    if isinstance(tp, TensorProduct):
+                    # Check if recursive expansion is needed by comparing the non-commutative part
+                    if isinstance(tp, Mul):
+                        # Split commutative and non-commutative parts
+                        c_part, nc_part = tp.args_cnc()
+                        if nc_part and isinstance(nc_part[0], TensorProduct):
+                            # Recursively expand the TensorProduct part
+                            expanded_nc = nc_part[0]._eval_expand_tensorproduct()
+                            tp = Mul(*c_part) * expanded_nc
+                    elif isinstance(tp, TensorProduct):
                         tp = tp._eval_expand_tensorproduct()
                     add_args.append(tp)
                 break
