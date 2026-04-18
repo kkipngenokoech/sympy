@@ -124,21 +124,29 @@ def dmp_trial_division(f, factors, u, K):
 
 
 def dup_zz_mignotte_bound(f, K):
-    """Mignotte bound for univariate polynomials in `K[x]`. """
-    a = dup_max_norm(f, K)
+    """Knuth-Cohen bound for univariate polynomials in `K[x]`. """
     b = abs(dup_LC(f, K))
     n = dup_degree(f)
+    l1_norm = dup_l1_norm(f, K)
 
-    return K.sqrt(K(n + 1))*2**n*a*b
+    return 2**n * b * K.sqrt(l1_norm)
 
 
 def dmp_zz_mignotte_bound(f, u, K):
-    """Mignotte bound for multivariate polynomials in `K[X]`. """
-    a = dmp_max_norm(f, u, K)
+    """Knuth-Cohen bound for multivariate polynomials in `K[X]`. """
     b = abs(dmp_ground_LC(f, u, K))
     n = sum(dmp_degree_list(f, u))
+    
+    # Compute L1 norm for multivariate polynomial
+    def _dmp_l1_norm(g, v):
+        if not v:
+            return dup_l1_norm(g, K)
+        else:
+            return sum(_dmp_l1_norm(coeff, v-1) for coeff in g if coeff)
+    
+    l1_norm = _dmp_l1_norm(f, u)
 
-    return K.sqrt(K(n + 1))*2**n*a*b
+    return 2**n * b * K.sqrt(l1_norm)
 
 
 def dup_zz_hensel_step(m, f, g, h, s, t, K):
