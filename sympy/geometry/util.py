@@ -16,6 +16,7 @@ from sympy import Function, Symbol, solve
 from sympy.core.compatibility import (
     is_sequence, range, string_types, ordered)
 from sympy.core.containers import OrderedSet
+from sympy.core.relational import Eq
 from .point import Point, Point2D
 
 
@@ -565,11 +566,25 @@ def idiff(eq, y, x, n=1):
     sympy.core.function.diff: explicitly differentiates wrt symbols
 
     """
+    # Handle Eq objects by converting to lhs - rhs
+    if isinstance(eq, Eq):
+        eq = eq.lhs - eq.rhs
+    
     if is_sequence(y):
-        dep = set(y)
+        dep = set()
+        for yi in y:
+            if isinstance(yi, Function):
+                # Handle function notation like f(x)
+                dep.add(Symbol(yi.func.__name__))
+            else:
+                dep.add(yi)
         y = y[0]
     elif isinstance(y, Symbol):
         dep = {y}
+    elif isinstance(y, Function):
+        # Handle function notation like f(x)
+        dep = {Symbol(y.func.__name__)}
+        y = Symbol(y.func.__name__)
     else:
         raise ValueError("expecting x-dependent symbol(s) but got: %s" % y)
 
