@@ -150,6 +150,60 @@ class PrettyPrinter(Printer):
         pform = prettyForm(*pform.left(self._print(U('INCREMENT'))))
         return pform
 
+    def _print_VectorAdd(self, e):
+        pforms = []
+        for arg in e.args:
+            pforms.append(self._print(arg))
+        
+        if not pforms:
+            return prettyForm('0')
+        
+        result = pforms[0]
+        for pform in pforms[1:]:
+            result = prettyForm(*result.right(' + '))
+            result = prettyForm(*result.right(pform))
+        
+        return result
+
+    def _print_VectorMul(self, e):
+        from sympy.vector.vector import BaseVector
+        
+        # Separate scalar and vector parts
+        scalar_part = None
+        vector_part = None
+        
+        for arg in e.args:
+            if isinstance(arg, BaseVector):
+                vector_part = arg
+            else:
+                if scalar_part is None:
+                    scalar_part = arg
+                else:
+                    scalar_part = scalar_part * arg
+        
+        if scalar_part is None and vector_part is None:
+            return prettyForm('0')
+        elif scalar_part is None:
+            return self._print(vector_part)
+        elif vector_part is None:
+            return self._print(scalar_part)
+        else:
+            # Print scalar part first, then vector part
+            scalar_pform = self._print(scalar_part)
+            vector_pform = self._print(vector_part)
+            
+            # Add space between scalar and vector if needed
+            if scalar_pform.width() > 0 and vector_pform.width() > 0:
+                result = prettyForm(*scalar_pform.right(' '))
+                result = prettyForm(*result.right(vector_pform))
+            else:
+                result = prettyForm(*scalar_pform.right(vector_pform))
+            
+            return result
+
+    def _print_BaseVector(self, e):
+        return prettyForm(str(e))
+
     def _print_Atom(self, e):
         try:
             # print atoms like Exp1 or Pi
