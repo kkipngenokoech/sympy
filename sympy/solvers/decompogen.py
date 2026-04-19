@@ -1,5 +1,7 @@
-from sympy.core import Function, Pow, sympify
+from sympy.core import (Function, Pow, sympify, Expr)
+from sympy.core.relational import Relational
 from sympy.polys import Poly, decompose
+from sympy.utilities.misc import func_name
 
 
 def decompogen(f, symbol):
@@ -31,13 +33,23 @@ def decompogen(f, symbol):
 
     """
     f = sympify(f)
+    if not isinstance(f, Expr) or isinstance(f, Relational):
+        raise TypeError('expecting Expr but got: `%s`' % func_name(f))
+    if symbol not in f.free_symbols:
+        return [f]
+
     result = []
 
     # ===== Simple Functions ===== #
     if isinstance(f, (Function, Pow)):
-        if f.args[0] == symbol:
+        from sympy import S
+        if f.is_Pow and f.base == S.Exp1:
+            arg = f.exp
+        else:
+            arg = f.args[0]
+        if arg == symbol:
             return [f]
-        result += [f.subs(f.args[0], symbol)] + decompogen(f.args[0], symbol)
+        result += [f.subs(arg, symbol)] + decompogen(arg, symbol)
         return result
 
     # ===== Convert to Polynomial ===== #
