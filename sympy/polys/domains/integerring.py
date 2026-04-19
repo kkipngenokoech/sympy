@@ -1,11 +1,9 @@
 """Implementation of :class:`IntegerRing` class. """
 
-from __future__ import print_function, division
 
+from sympy.polys.domains.characteristiczero import CharacteristicZero
 from sympy.polys.domains.ring import Ring
 from sympy.polys.domains.simpledomain import SimpleDomain
-from sympy.polys.domains.characteristiczero import CharacteristicZero
-
 from sympy.utilities import public
 
 import math
@@ -18,6 +16,7 @@ class IntegerRing(Ring, CharacteristicZero, SimpleDomain):
 
     is_IntegerRing = is_ZZ = True
     is_Numerical = True
+    is_PID = True
 
     has_assoc_Ring = True
     has_assoc_Field = True

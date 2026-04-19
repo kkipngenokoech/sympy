@@ -1,6 +1,5 @@
 """Implementation of :class:`Ring` class. """
 
-from __future__ import print_function, division
 
 from sympy.polys.domains.domain import Domain
 from sympy.polys.polyerrors import ExactQuotientFailed, NotInvertible, NotReversible
@@ -11,7 +10,7 @@ from sympy.utilities import public
 class Ring(Domain):
     """Represents a ring domain. """
 
-    has_Ring = True
+    is_Ring = True
 
     def get_ring(self):
         """Returns a ring associated with ``self``. """
@@ -115,7 +114,5 @@ class Ring(Domain):
             e = self.ideal(*e)
         return QuotientRing(self, e)
 
-    def __div__(self, e):
+    def __truediv__(self, e):
         return self.quotient_ring(e)
-
-    __truediv__ = __div__

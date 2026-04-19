@@ -1,13 +1,11 @@
-"""Implementaton of :class:`GMPYRationalField` class. """
+"""Implementation of :class:`GMPYRationalField` class. """
 
-from __future__ import print_function, division
 
-from sympy.polys.domains.rationalfield import RationalField
 from sympy.polys.domains.groundtypes import (
     GMPYRational, SymPyRational,
-    gmpy_numer, gmpy_denom, gmpy_factorial, gmpy_qdiv,
+    gmpy_numer, gmpy_denom, gmpy_factorial,
 )
-
+from sympy.polys.domains.rationalfield import RationalField
 from sympy.polys.polyerrors import CoercionFailed
 from sympy.utilities import public
 
@@ -40,7 +38,7 @@ class GMPYRationalField(RationalField):
             return GMPYRational(a.p, a.q)
         elif a.is_Float:
             from sympy.polys.domains import RR
-            return GMPYRational(*RR.to_rational(a))
+            return GMPYRational(*map(int, RR.to_rational(a)))
         else:
             raise CoercionFailed("expected `Rational` object, got %s" % a)
 
@@ -60,25 +58,30 @@ class GMPYRationalField(RationalField):
         """Convert a GMPY `mpq` object to `dtype`. """
         return a
 
+    def from_GaussianRationalField(K1, a, K0):
+        """Convert a `GaussianElement` object to `dtype`. """
+        if a.y == 0:
+            return GMPYRational(a.x)
+
     def from_RealField(K1, a, K0):
         """Convert a mpmath `mpf` object to `dtype`. """
-        return GMPYRational(*K0.to_rational(a))
+        return GMPYRational(*map(int, K0.to_rational(a)))
 
     def exquo(self, a, b):
-        """Exact quotient of `a` and `b`, implies `__div__`.  """
-        return GMPYRational(gmpy_qdiv(a, b))
+        """Exact quotient of `a` and `b`, implies `__truediv__`.  """
+        return GMPYRational(a) / GMPYRational(b)
 
     def quo(self, a, b):
-        """Quotient of `a` and `b`, implies `__div__`. """
-        return GMPYRational(gmpy_qdiv(GMPYRational(a), GMPYRational(b)))
+        """Quotient of `a` and `b`, implies `__truediv__`. """
+        return GMPYRational(a) / GMPYRational(b)
 
     def rem(self, a, b):
         """Remainder of `a` and `b`, implies nothing.  """
         return self.zero
 
     def div(self, a, b):
-        """Division of `a` and `b`, implies `__div__`. """
-        return GMPYRational(gmpy_qdiv(a, b)), self.zero
+        """Division of `a` and `b`, implies `__truediv__`. """
+        return GMPYRational(a) / GMPYRational(b), self.zero
 
     def numer(self, a):
         """Returns numerator of `a`. """
