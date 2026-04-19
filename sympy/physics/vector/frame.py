@@ -70,7 +70,7 @@ class CoordinateSym(Symbol):
         return False
 
     def __ne__(self, other):
-        return not self.__eq__(other)
+        return not self == other
 
     def __hash__(self):
         return tuple((self._id[0].__hash__(), self._id[1])).__hash__()
@@ -89,6 +89,7 @@ class ReferenceFrame(object):
     vector, defined in another frame.
 
     """
+    _count = 0
 
     def __init__(self, name, indices=None, latexs=None, variables=None):
         """ReferenceFrame initialization method.
@@ -199,6 +200,8 @@ class ReferenceFrame(object):
         self.varlist = (CoordinateSym(variables[0], self, 0), \
                         CoordinateSym(variables[1], self, 1), \
                         CoordinateSym(variables[2], self, 2))
+        ReferenceFrame._count += 1
+        self.index = ReferenceFrame._count
 
     def __getitem__(self, ind):
         """
@@ -257,7 +260,9 @@ class ReferenceFrame(object):
         from sympy.physics.vector.functions import dynamicsymbols
         dcm2diff = self.dcm(otherframe)
         diffed = dcm2diff.diff(dynamicsymbols._t)
-        angvelmat = diffed * dcm2diff.T
+        # angvelmat = diffed * dcm2diff.T
+        # This one seems to produce the correct result when I checked using Autolev.
+        angvelmat = dcm2diff*diffed.T
         w1 = trigsimp(expand(angvelmat[7]), recursive=True)
         w2 = trigsimp(expand(angvelmat[2]), recursive=True)
         w3 = trigsimp(expand(angvelmat[3]), recursive=True)
@@ -694,7 +699,8 @@ class ReferenceFrame(object):
 
         """
 
-        newframe = self.__class__(newname, variables, indices, latexs)
+        newframe = self.__class__(newname, variables=variables,
+                                  indices=indices, latexs=latexs)
         newframe.orient(self, rot_type, amounts, rot_order)
         return newframe
 

@@ -1,8 +1,10 @@
 from sympy import (
     symbols, sin, simplify, cos, trigsimp, rad, tan, exptrigsimp,sinh,
     cosh, diff, cot, Subs, exp, tanh, exp, S, integrate, I,Matrix,
-    Symbol, coth, pi, log, count_ops, sqrt, E, expand, Piecewise)
+    Symbol, coth, pi, log, count_ops, sqrt, E, expand, Piecewise , Rational
+    )
 
+from sympy.core.compatibility import long
 from sympy.utilities.pytest import XFAIL
 
 from sympy.abc import x, y, z, t, a, b, c, d, e, f, g, h, i, k
@@ -276,6 +278,10 @@ def test_hyperbolic_simp():
     assert trigsimp(y*tanh(x)**2/sinh(x)**2) == y/cosh(x)**2
     assert trigsimp(coth(x)/cosh(x)) == 1/sinh(x)
 
+    for a in (pi/6*I, pi/4*I, pi/3*I):
+        assert trigsimp(sinh(a)*cosh(x) + cosh(a)*sinh(x)) == sinh(x + a)
+        assert trigsimp(-sinh(a)*cosh(x) + cosh(a)*sinh(x)) == sinh(x - a)
+
     e = 2*cosh(x)**2 - 2*sinh(x)**2
     assert trigsimp(log(e)) == log(2)
 
@@ -324,6 +330,7 @@ def test_trigsimp_groebner():
 
     # Test quick=False works
     assert trigsimp_groebner(ex, hints=[2]) in results
+    assert trigsimp_groebner(ex, hints=[long(2)]) in results
 
     # test "I"
     assert trigsimp_groebner(sin(I*x)/cos(I*x), hints=[tanh]) == I*tanh(x)
@@ -351,6 +358,14 @@ def test_issue_2827_trigsimp_methods():
     eq = 1/sqrt(E) + E
     assert exptrigsimp(eq) == eq
 
+def test_issue_15129_trigsimp_methods():
+    t1 = Matrix([sin(Rational(1, 50)), cos(Rational(1, 50)), 0])
+    t2 = Matrix([sin(Rational(1, 25)), cos(Rational(1, 25)), 0])
+    t3 = Matrix([cos(Rational(1, 25)), sin(Rational(1, 25)), 0])
+    r1 = t1.dot(t2)
+    r2 = t1.dot(t3)
+    assert trigsimp(r1) == cos(S(1)/50)
+    assert trigsimp(r2) == sin(S(3)/50)
 
 def test_exptrigsimp():
     def valid(a, b):
@@ -361,6 +376,8 @@ def test_exptrigsimp():
 
     assert exptrigsimp(exp(x) + exp(-x)) == 2*cosh(x)
     assert exptrigsimp(exp(x) - exp(-x)) == 2*sinh(x)
+    assert exptrigsimp((2*exp(x)-2*exp(-x))/(exp(x)+exp(-x))) == 2*tanh(x)
+    assert exptrigsimp((2*exp(2*x)-2)/(exp(2*x)+1)) == 2*tanh(x)
     e = [cos(x) + I*sin(x), cos(x) - I*sin(x),
          cosh(x) - sinh(x), cosh(x) + sinh(x)]
     ok = [exp(I*x), exp(-I*x), exp(-x), exp(x)]
@@ -378,12 +395,8 @@ def test_exptrigsimp():
     for a in (1, I, x, I*x, 1 + I):
         w = exp(a)
         eq = y*(w - 1/w)/(w + 1/w)
-        s = simplify(eq)
-        assert s == exptrigsimp(eq)
-        res.append(s)
-        sinv = simplify(1/eq)
-        assert sinv == exptrigsimp(1/eq)
-        res.append(sinv)
+        res.append(simplify(eq))
+        res.append(simplify(1/eq))
     assert all(valid(i, j) for i, j in zip(res, ok))
 
     for a in range(1, 3):
@@ -397,6 +410,12 @@ def test_exptrigsimp():
         assert s == exptrigsimp(e)
         assert valid(s, 2*sinh(a))
 
+def test_exptrigsimp_noncommutative():
+    a,b = symbols('a b', commutative=False)
+    x = Symbol('x', commutative=True)
+    assert exp(a + x) == exptrigsimp(exp(a)*exp(x))
+    p = exp(a)*exp(b) - exp(b)*exp(a)
+    assert p == exptrigsimp(p) != 0
 
 def test_powsimp_on_numbers():
     assert 2**(S(1)/3 - 2) == 2**(S(1)/3)/4

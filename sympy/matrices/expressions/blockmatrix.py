@@ -10,13 +10,14 @@ from sympy.utilities import sift
 from sympy.matrices.expressions.matexpr import MatrixExpr, ZeroMatrix, Identity
 from sympy.matrices.expressions.matmul import MatMul
 from sympy.matrices.expressions.matadd import MatAdd
+from sympy.matrices.expressions.matpow import MatPow
 from sympy.matrices.expressions.transpose import Transpose, transpose
 from sympy.matrices.expressions.trace import Trace
 from sympy.matrices.expressions.determinant import det, Determinant
 from sympy.matrices.expressions.slice import MatrixSlice
 from sympy.matrices.expressions.inverse import Inverse
 from sympy.matrices import Matrix, ShapeError
-
+from sympy.functions.elementary.complexes import re, im
 
 class BlockMatrix(MatrixExpr):
     """A BlockMatrix is a Matrix composed of other smaller, submatrices
@@ -41,13 +42,13 @@ class BlockMatrix(MatrixExpr):
     Matrix([[I, Z]])
 
     >>> print(block_collapse(C*B))
-    Matrix([[X, Z*Y + Z]])
+    Matrix([[X, Z + Z*Y]])
 
     """
     def __new__(cls, *args):
-        from sympy.matrices.immutable import ImmutableMatrix
+        from sympy.matrices.immutable import ImmutableDenseMatrix
         args = map(sympify, args)
-        mat = ImmutableMatrix(*args)
+        mat = ImmutableDenseMatrix(*args)
 
         obj = Basic.__new__(cls, mat)
         return obj
@@ -124,6 +125,15 @@ class BlockMatrix(MatrixExpr):
             elif ask(Q.invertible(D)):
                 return det(D)*det(A - B*D.I*C)
         return Determinant(self)
+
+    def as_real_imag(self):
+        real_matrices = [re(matrix) for matrix in self.blocks]
+        real_matrices = Matrix(self.blockshape[0], self.blockshape[1], real_matrices)
+
+        im_matrices = [im(matrix) for matrix in self.blocks]
+        im_matrices = Matrix(self.blockshape[0], self.blockshape[1], im_matrices)
+
+        return (real_matrices, im_matrices)
 
     def transpose(self):
         """Return transpose of matrix.
@@ -208,12 +218,12 @@ class BlockDiagMatrix(BlockMatrix):
 
     @property
     def blocks(self):
-        from sympy.matrices.immutable import ImmutableMatrix
+        from sympy.matrices.immutable import ImmutableDenseMatrix
         mats = self.args
         data = [[mats[i] if i == j else ZeroMatrix(mats[i].rows, mats[j].cols)
                         for j in range(len(mats))]
                         for i in range(len(mats))]
-        return ImmutableMatrix(data)
+        return ImmutableDenseMatrix(data)
 
     @property
     def shape(self):
@@ -273,13 +283,14 @@ def block_collapse(expr):
     Matrix([[I, Z]])
 
     >>> print(block_collapse(C*B))
-    Matrix([[X, Z*Y + Z]])
+    Matrix([[X, Z + Z*Y]])
     """
     hasbm = lambda expr: isinstance(expr, MatrixExpr) and expr.has(BlockMatrix)
     rule = exhaust(
         bottom_up(exhaust(condition(hasbm, typed(
             {MatAdd: do_one(bc_matadd, bc_block_plus_ident),
              MatMul: do_one(bc_matmul, bc_dist),
+             MatPow: bc_matmul,
              Transpose: bc_transpose,
              Inverse: bc_inverse,
              BlockMatrix: do_one(bc_unpack, deblock)})))))
@@ -334,7 +345,13 @@ def bc_dist(expr):
 
 
 def bc_matmul(expr):
-    factor, matrices = expr.as_coeff_matrices()
+    if isinstance(expr, MatPow):
+        if expr.args[1].is_Integer:
+            factor, matrices = (1, [expr.args[0]]*expr.args[1])
+        else:
+            return expr
+    else:
+        factor, matrices = expr.as_coeff_matrices()
 
     i = 0
     while (i+1 < len(matrices)):
