@@ -299,7 +299,7 @@ class Factors(object):
         >>> f.factors  # underlying dictionary
         {2: 1, x: 3}
         >>> f.gens  # base of each factor
-        frozenset([2, x])
+        frozenset({2, x})
         >>> Factors(0)
         Factors({0: 1})
         >>> Factors(I)
@@ -797,7 +797,7 @@ class Factors(object):
         return self.factors == other.factors
 
     def __ne__(self, other):  # Factors
-        return not self.__eq__(other)
+        return not self == other
 
 
 class Term(object):
@@ -909,7 +909,7 @@ class Term(object):
                 self.denom == other.denom)
 
     def __ne__(self, other):  # Term
-        return not self.__eq__(other)
+        return not self == other
 
 
 def _gcd_terms(terms, isprimitive=False, fraction=True):

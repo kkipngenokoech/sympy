@@ -1255,12 +1255,19 @@ def test_Mul_is_imaginary_real():
     assert (r*i*ii).is_real is True
 
     # Github's issue 5874:
-    nr = Symbol('nr', real=False, complex=True)
+    nr = Symbol('nr', real=False, complex=True)  # e.g. I or 1 + I
     a = Symbol('a', real=True, nonzero=True)
     b = Symbol('b', real=True)
     assert (i*nr).is_real is None
     assert (a*nr).is_real is False
     assert (b*nr).is_real is None
+
+    ni = Symbol('ni', imaginary=False, complex=True)  # e.g. 2 or 1 + I
+    a = Symbol('a', real=True, nonzero=True)
+    b = Symbol('b', real=True)
+    assert (i*ni).is_real is False
+    assert (a*ni).is_real is None
+    assert (b*ni).is_real is None
 
 
 def test_Mul_hermitian_antihermitian():
@@ -1491,6 +1498,23 @@ def test_issue_5919():
 
 
 def test_Mod():
+    from sympy import S
+    # Test that Mod(x**2, x) is 0 only when x is integer
+    x = Symbol('x', integer=True)
+    assert Mod(x**2, x) == 0
+    
+    # Test that Mod(x**2, x) is not simplified when x is not known to be integer
+    y = Symbol('y')
+    assert Mod(y**2, y) != 0
+    
+    # Test specific non-integer case
+    assert Mod(S(1.5)**2, S(1.5)) == S(0.75)
+    
+    # Test negative integer case
+    z = Symbol('z', integer=True)
+    assert Mod(z**2, z) == 0
+
+def test_Mod_original():
     assert Mod(x, 1).func is Mod
     assert pi % pi == S.Zero
     assert Mod(5, 3) == 2
