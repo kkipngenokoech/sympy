@@ -92,7 +92,7 @@ class FermionOp(Operator):
         if self.is_annihilation:
             return r'{%s}' % str(self.name)
         else:
-            return r'{{%s}^\dag}' % str(self.name)
+            return r'{{%s}^\dagger}' % str(self.name)
 
     def _print_contents(self, printer, *args):
         if self.is_annihilation:
@@ -106,7 +106,7 @@ class FermionOp(Operator):
         if self.is_annihilation:
             return pform
         else:
-            return pform**prettyForm(u'\N{DAGGER}')
+            return pform**prettyForm('\N{DAGGER}')
 
 
 class FermionFockKet(Ket):

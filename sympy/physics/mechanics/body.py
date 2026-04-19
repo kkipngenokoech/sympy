@@ -1,17 +1,21 @@
-from sympy import Symbol
-from sympy.physics.mechanics import (RigidBody, Particle, ReferenceFrame,
-                                     inertia)
-from sympy.physics.vector import Point, Vector
+from sympy.core.backend import Symbol
+from sympy.physics.vector import Point, Vector, ReferenceFrame
+from sympy.physics.mechanics import RigidBody, Particle, inertia
 
 __all__ = ['Body']
 
 
-class Body(RigidBody, Particle):
+# XXX: We use type:ignore because the classes RigidBody and Particle have
+# inconsistent parallel axis methods that take different numbers of arguments.
+class Body(RigidBody, Particle):  # type: ignore
     """
     Body is a common representation of either a RigidBody or a Particle SymPy
     object depending on what is passed in during initialization. If a mass is
-    passed in and central_inertia is left as None, the a Particle object is
+    passed in and central_inertia is left as None, the Particle object is
     created. Otherwise a RigidBody object will be created.
+
+    Explanation
+    ===========
 
     The attributes that Body possesses will be the same as a Particle instance
     or a Rigid Body instance depending on which was created. Additional
@@ -88,7 +92,7 @@ class Body(RigidBody, Particle):
         >>> mass = Symbol('mass')
         >>> body = Body('name_of_body', mass=mass)
 
-    The Particle version of the Body object can also recieve a masscenter point
+    The Particle version of the Body object can also receive a masscenter point
     and a reference frame, just not an inertia.
     """
 
@@ -149,7 +153,7 @@ class Body(RigidBody, Particle):
         Example
         =======
 
-        The first example applys a gravitational force in the x direction of
+        The first example applies a gravitational force in the x direction of
         Body's frame to the body's center of mass. ::
 
             >>> from sympy import Symbol
@@ -159,9 +163,9 @@ class Body(RigidBody, Particle):
             >>> body.apply_force(body.mass * g * body.frame.x)
 
         To apply force to any other point than center of mass, pass that point
-        as well. This example applys a gravitational force to a point a distance
-        l from the body's center of mass in the y direction. The force is again
-        applied in the x direction. ::
+        as well. This example applies a gravitational force to a point a
+        distance l from the body's center of mass in the y direction. The
+        force is again applied in the x direction. ::
 
             >>> from sympy import Symbol
             >>> from sympy.physics.mechanics import Body
