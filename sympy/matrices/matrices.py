@@ -643,6 +643,11 @@ class MatrixProperties(MatrixRequired):
                    for i in range(2, self.rows)
                    for j in range(i - 1))
 
+    def _eval_is_upper(self):
+        return all(self[i, j].is_zero
+                   for i in range(1, self.rows)
+                   for j in range(min(i, self.cols)))
+
     def _eval_values(self):
         return [i for i in self if not i.is_zero]
 
@@ -664,6 +669,29 @@ class MatrixProperties(MatrixRequired):
         if not types:
             types = (Atom,)
         return self._eval_atoms(*types)
+
+    @property
+    def is_upper(self):
+        """Check if matrix is an upper triangular matrix. A matrix
+        M is upper triangular matrix if M[i, j] is zero whenever i > j.
+
+        Examples
+        ========
+
+        >>> from sympy import Matrix
+        >>> m = Matrix(2, 2, [1, 0, 0, 1])
+        >>> m
+        Matrix([
+        [1, 0],
+        [0, 1]])
+        >>> m.is_upper
+        True
+
+        >>> m = Matrix(4, 2, [1, 2, 0, 0, 0, 0, 0, 0])
+        >>> m.is_upper
+        True
+        """
+        return self._eval_is_upper()
 
     @property
     def free_symbols(self):
