@@ -1,5 +1,8 @@
+.. _g-functions:
+
+============================================
 Computing Integrals using Meijer G-Functions
-********************************************
+============================================
 
 This text aims do describe in some detail the steps (and subtleties) involved
 in using Meijer G-functions for computing definite and indefinite integrals.
@@ -17,7 +20,7 @@ The algorithm to compute `\int f(x) \mathrm{d}x` or
 3. Expand the result in named special functions.
 
 Step (3) is implemented in the function hyperexpand (q.v.). Steps (1) and (2)
-are described below. Morever, G-functions are usually branched. Thus our treatment
+are described below. Moreover, G-functions are usually branched. Thus our treatment
 of branched functions is described first.
 
 Some other integrals (e.g. `\int_{-\infty}^\infty`) can also be computed by first
@@ -115,8 +118,8 @@ Suppose now we want to rewrite as a product of two G-functions. To do this,
 we (try to) find all inequivalent ways of splitting `f(x)` into a product
 `f_1(x) f_2(x)`.
 We could try these splittings in any order, but it is often a good idea to
-minimise (a) the number of powers occuring in `f_i(x)` and (b) the number of
-different functions occuring in `f_i(x)`. Thus given e.g.
+minimize (a) the number of powers occurring in `f_i(x)` and (b) the number of
+different functions occurring in `f_i(x)`. Thus given e.g.
 `f(x) = \sin{x}\, e^{x} \sin{2x}` we should try `f_1(x) = \sin{x}\, \sin{2x}`,
 `f_2(x) = e^{x}` first.
 All of this is done by the function ``_mul_as_two_parts(f)``.
@@ -161,7 +164,7 @@ is satisfies `G(\operatorname{Exp}(2 \pi i)z) = G(z)` for all `z \in \mathcal{S}
 be used to exploit the information. This is done transparently by the
 integration code.
 
-.. [BlogPost] http://nessgrh.wordpress.com/2011/07/07/tricky-branch-cuts/
+.. [BlogPost] https://nessgrh.wordpress.com/2011/07/07/tricky-branch-cuts/
 
 The G-Function Integration Theorems
 ***********************************
@@ -451,7 +454,7 @@ particular the inner integral has to converge. Also, for our identification of
 the final integral as a Fox H / Meijer G-function to be correct, the poles of
 the newly obtained gamma function must be separated properly.
 
-It is easy to check that the inner integal converges absolutely for
+It is easy to check that the inner integral converges absolutely for
 `\Re(as) < -1`. Thus the contour `L` has to run left of the line `\Re(as) = -1`.
 Under this condition, the poles of the newly-introduced gamma function are
 separated properly.
@@ -462,7 +465,7 @@ Thus the final computation remains valid as long as the initial integral
 converges, and if there exists a changed set of parameters where the computation
 is valid. If we assume w.l.o.g. that `a > 0`, then the latter condition is
 fulfilled if `G` converges along contours (2) or (3) of [Luke1969]_,
-section 5.2, i.e. either `\delta >= \frac{a}{2}` or `p \ge 1, p \ge q`.
+section 5.2, i.e. either `\delta \ge \frac{a}{2}` or `p \ge 1, p \ge q`.
 
 When the integral exists
 ========================
@@ -506,3 +509,10 @@ of deriving new formulae improve. Of course it has to grow whenever a new class
 of special functions is to be dealt with.
 
 .. automodule:: sympy.integrals.meijerint_doc
+
+Internal API Reference
+**********************
+
+.. automodule:: sympy.integrals.meijerint
+   :members:
+   :private-members:
