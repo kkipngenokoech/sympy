@@ -897,8 +897,20 @@ class Permutation(Basic):
         temp = flatten(args)
         if has_dups(temp):
             if is_cycle:
-                raise ValueError('there were repeated elements; to resolve '
-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))
+                # Apply cycles left-to-right instead of raising error
+                aform = list(range(max_elem + 1))
+                for cycle in args:
+                    if len(cycle) > 1:
+                        # Apply this cycle to current permutation
+                        cycle_perm = list(range(max_elem + 1))
+                        for i in range(len(cycle)):
+                            cycle_perm[cycle[i]] = cycle[(i + 1) % len(cycle)]
+                        # Compose with existing permutation
+                        new_aform = [0] * len(aform)
+                        for i in range(len(aform)):
+                            new_aform[i] = cycle_perm[aform[i]]
+                        aform = new_aform
+                return cls._af_new(aform)
             else:
                 raise ValueError('there were repeated elements.')
         temp = set(temp)
