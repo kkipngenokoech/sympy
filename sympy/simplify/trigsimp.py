@@ -8,9 +8,10 @@ from sympy.core import (sympify, Basic, S, Expr, expand_mul, factor_terms,
 from sympy.core.compatibility import reduce, iterable
 from sympy.core.numbers import I, Integer
 from sympy.core.function import count_ops, _mexpand
+from sympy.core.mul import _keep_coeff
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from sympy.functions.elementary.hyperbolic import HyperbolicFunction
-from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth
+from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth, sinc
 
 from sympy.strategies.core import identity
 from sympy.strategies.tree import greedy
@@ -423,6 +424,110 @@ def trigsimp_groebner(expr, hints=[], quick=False, order="grlex",
 
 
 _trigs = (TrigonometricFunction, HyperbolicFunction)
+
+
+def _exp_to_trig(expr):
+    """
+    Convert exponential expressions to trigonometric forms.
+    
+    Recognizes patterns like:
+    - (-I*exp(I*x) + I*exp(-I*x))/2 -> sin(x)
+    - (exp(I*x) + exp(-I*x))/2 -> cos(x)
+    - (-I*exp(I*x) + I*exp(-I*x))/(2*x) -> sinc(x)
+    """
+    from sympy import Wild, collect, simplify
+    
+    if not expr.has(exp, I):
+        return expr
+        
+    # Define wildcards
+    a, b, c, x = Wild('a'), Wild('b'), Wild('c'), Wild('x')
+    
+    # Pattern for sin: (-I*exp(I*x) + I*exp(-I*x))/2
+    # More general: a*(-I*exp(I*b*x) + I*exp(-I*b*x))
+    sin_pattern1 = a * (-I*exp(I*b*x) + I*exp(-I*b*x))
+    sin_pattern2 = a * (I*exp(-I*b*x) - I*exp(I*b*x))
+    
+    # Pattern for cos: (exp(I*x) + exp(-I*x))/2  
+    # More general: a*(exp(I*b*x) + exp(-I*b*x))
+    cos_pattern1 = a * (exp(I*b*x) + exp(-I*b*x))
+    
+    def _try_replace(expr, pattern, trig_func, factor=1):
+        """Try to replace pattern with trigonometric function."""
+        matches = expr.match(pattern)
+        if matches and matches.get(b) is not None:
+            a_val = matches.get(a, 1)
+            b_val = matches.get(b, 1) 
+            x_val = matches.get(x)
+            if x_val is not None:
+                return factor * a_val * trig_func(b_val * x_val)
+        return None
+    
+    # Try to match and replace patterns
+    if expr.is_Add:
+        # Handle additions by checking each term
+        new_args = []
+        changed = False
+        for arg in expr.args:
+            new_arg = _exp_to_trig(arg)
+            if new_arg != arg:
+                changed = True
+            new_args.append(new_arg)
+        if changed:
+            return Add(*new_args)
+    elif expr.is_Mul:
+        # Handle multiplications
+        new_args = []
+        changed = False
+        for arg in expr.args:
+            new_arg = _exp_to_trig(arg)
+            if new_arg != arg:
+                changed = True
+            new_args.append(new_arg)
+        if changed:
+            expr = Mul(*new_args)
+    
+    # Try sin patterns
+    result = _try_replace(expr, sin_pattern1, sin, S.Half)
+    if result is not None:
+        return result
+        
+    result = _try_replace(expr, sin_pattern2, sin, S.Half)
+    if result is not None:
+        return result
+    
+    # Try cos pattern
+    result = _try_replace(expr, cos_pattern1, cos, S.Half)
+    if result is not None:
+        return result
+    
+    # Check for sinc pattern: sin(x)/x
+    if expr.is_Mul:
+        # Look for expressions of the form sin_expr / x where sin_expr contains sin(x)
+        numer_factors = []
+        denom_factors = []
+        
+        for factor in expr.args:
+            if factor.is_Pow and factor.exp.is_negative:
+                denom_factors.append(factor.base)
+            else:
+                numer_factors.append(factor)
+        
+        if len(denom_factors) == 1:
+            numer = Mul(*numer_factors) if numer_factors else S.One
+            denom = denom_factors[0]
+            
+            # Check if numerator is sin(denom) or sin(c*denom)
+            if numer.func == sin:
+                arg = numer.args[0]
+                if arg == denom:
+                    return sinc(denom)
+                elif arg.is_Mul and len(arg.args) == 2:
+                    coeff, var = arg.as_coeff_mul()
+                    if var == (denom,) and coeff.is_number:
+                        return coeff * sinc(coeff * denom)
+    
+    return expr
 
 
 def trigsimp(expr, **opts):
