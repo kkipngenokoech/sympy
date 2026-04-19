@@ -117,6 +117,17 @@ def seterr(divide=False):
         _errdict["divide"] = divide
 
 
+def _as_integer_ratio(p):
+    neg_pow, man, expt, bc = getattr(p, '_mpf_', mpmath.mpf(p)._mpf_)
+    p = [1, -1][neg_pow % 2]*man
+    if expt < 0:
+        q = 2**-expt
+    else:
+        q = 1
+        p *= 2**expt
+    return int(p), int(q)
+
+
 def _decimal_to_Rational_prec(dec):
     """Convert an ordinary decimal instance to a Rational."""
     if not dec.is_finite():
@@ -285,7 +296,7 @@ def mod_inverse(a, m):
     >>> mod_inverse(-3, 11)
     -4
 
-    When there is a commono factor between the numerators of
+    When there is a common factor between the numerators of
     ``a`` and ``m`` the inverse does not exist:
 
     >>> mod_inverse(2, 4)
@@ -1269,8 +1280,6 @@ class Rational(Number):
                     p = fractions.Fraction(p)
                 except ValueError:
                     pass  # error will raise below
-            elif isinstance(p, float):
-                p = fractions.Fraction(p)
 
             if not isinstance(p, string_types):
                 try:
@@ -1279,8 +1288,8 @@ class Rational(Number):
                 except NameError:
                     pass  # error will raise below
 
-                if isinstance(p, Float):
-                    return Rational(*float(p).as_integer_ratio())
+                if isinstance(p, (float, Float)):
+                    return Rational(*_as_integer_ratio(p))
 
             if not isinstance(p, SYMPY_INTS + (Rational,)):
                 raise TypeError('invalid input: %s' % p)
@@ -3569,6 +3578,10 @@ class ImaginaryUnit(with_metaclass(Singleton, AtomicExpr)):
     def _sage_(self):
         import sage.all as sage
         return sage.I
+
+    @property
+    def _mpc_(self):
+        return (Float(0)._mpf_, Float(1)._mpf_)
 
 I = S.ImaginaryUnit
 
