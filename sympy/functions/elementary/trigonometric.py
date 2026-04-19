@@ -16,10 +16,111 @@ from sympy.functions.elementary.hyperbolic import (acoth, asinh, atanh, cosh,
 from sympy.sets.sets import FiniteSet
 from sympy.utilities.iterables import numbered_symbols
 from sympy.core.compatibility import range
+from sympy.core.mul import Mul
+from sympy.core.power import Pow
 
 ###############################################################################
 ########################## TRIGONOMETRIC FUNCTIONS ############################
 ###############################################################################
+
+
+def exp_to_trig(expr):
+    """
+    Convert exponential expressions to trigonometric functions.
+    
+    This function recognizes common patterns like:
+    - (exp(I*x) - exp(-I*x))/(2*I) -> sin(x)
+    - (exp(I*x) + exp(-I*x))/2 -> cos(x)
+    - sin(x)/x -> sinc(x) when appropriate
+    
+    Examples
+    ========
+    
+    >>> from sympy import *
+    >>> from sympy.functions.elementary.trigonometric import exp_to_trig
+    >>> x = Symbol('x')
+    >>> expr = (exp(I*x) - exp(-I*x))/(2*I)
+    >>> exp_to_trig(expr)
+    sin(x)
+    >>> expr = (exp(I*x) + exp(-I*x))/2
+    >>> exp_to_trig(expr)
+    cos(x)
+    """
+    from sympy import I, simplify, expand
+    
+    expr = sympify(expr)
+    
+    # Handle division cases
+    if expr.is_Mul:
+        # Look for patterns like (exp(I*x) - exp(-I*x))/(2*I)
+        numer = None
+        denom = None
+        
+        # Extract numerator and denominator
+        for arg in expr.args:
+            if arg.is_Pow and arg.exp == -1:
+                if denom is None:
+                    denom = arg.base
+                else:
+                    denom = denom * arg.base
+            else:
+                if numer is None:
+                    numer = arg
+                else:
+                    numer = numer * arg
+        
+        if numer is None:
+            numer = S.One
+        if denom is None:
+            denom = S.One
+            
+        # Check for sin pattern: (exp(I*x) - exp(-I*x))/(2*I)
+        if denom == 2*I and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term2.args[0] == -term1.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return sin(x)
+        
+        # Check for cos pattern: (exp(I*x) + exp(-I*x))/2
+        if denom == 2 and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term1.args[0] == -term2.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return cos(x)
+    
+    # Handle direct division cases
+    if hasattr(expr, 'as_numer_denom'):
+        numer, denom = expr.as_numer_denom()
+        
+        # Check for sin pattern: (exp(I*x) - exp(-I*x))/(2*I)
+        if denom == 2*I and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term2.args[0] == -term1.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return sin(x)
+        
+        # Check for cos pattern: (exp(I*x) + exp(-I*x))/2
+        if denom == 2 and numer.is_Add and len(numer.args) == 2:
+            term1, term2 = numer.args
+            if (term1.func == exp and term2.func == exp and 
+                term1.args[0] == -term2.args[0] and 
+                term1.args[0].as_coefficient(I) is not None):
+                x = term1.args[0] / I
+                return cos(x)
+        
+        # Check for sinc pattern: sin(x)/x
+        if (numer.func == sin and len(numer.args) == 1 and 
+            denom == numer.args[0]):
+            from sympy.functions.elementary.miscellaneous import sinc
+            return sinc(numer.args[0])
+    
+    return expr
 
 
 class TrigonometricFunction(Function):
@@ -329,24 +430,32 @@ class sin(TrigonometricFunction):
             if m:
                 return sin(m)*cos(x) + cos(m)*sin(x)
 
-        if arg.func is asin:
+        if isinstance(arg, asin):
             return arg.args[0]
 
-        if arg.func is atan:
+        if isinstance(arg, atan):
             x = arg.args[0]
             return x / sqrt(1 + x**2)
 
-        if arg.func is atan2:
+        if isinstance(arg, atan2):
             y, x = arg.args
             return y / sqrt(x**2 + y**2)
 
-        if arg.func is acos:
+        if isinstance(arg, acos):
             x = arg.args[0]
             return sqrt(1 - x**2)
 
-        if arg.func is acot:
+        if isinstance(arg, acot):
             x = arg.args[0]
             return 1 / (sqrt(1 + 1 / x**2) * x)
+
+        if isinstance(arg, acsc):
+            x = arg.args[0]
+            return 1 / x
+
+        if isinstance(arg, asec):
+            x = arg.args[0]
+            return sqrt(1 - 1 / x**2)
 
     @staticmethod
     @cacheit
@@ -369,7 +478,7 @@ class sin(TrigonometricFunction):
         return (exp(arg*I) - exp(-arg*I)) / (2*I)
 
     def _eval_rewrite_as_Pow(self, arg):
-        if arg.func is log:
+        if isinstance(arg, log):
             I = S.ImaginaryUnit
             x = arg.args[0]
             return I*x**-I / 2 - I*x**I /2
@@ -614,24 +723,32 @@ class cos(TrigonometricFunction):
             if m:
                 return cos(m)*cos(x) - sin(m)*sin(x)
 
-        if arg.func is acos:
+        if isinstance(arg, acos):
             return arg.args[0]
 
-        if arg.func is atan:
+        if isinstance(arg, atan):
             x = arg.args[0]
             return 1 / sqrt(1 + x**2)
 
-        if arg.func is atan2:
+        if isinstance(arg, atan2):
             y, x = arg.args
             return x / sqrt(x**2 + y**2)
 
-        if arg.func is asin:
+        if isinstance(arg, asin):
             x = arg.args[0]
             return sqrt(1 - x ** 2)
 
-        if arg.func is acot:
+        if isinstance(arg, acot):
             x = arg.args[0]
             return 1 / sqrt(1 + 1 / x**2)
+
+        if isinstance(arg, acsc):
+            x = arg.args[0]
+            return sqrt(1 - 1 / x**2)
+
+        if isinstance(arg, asec):
+            x = arg.args[0]
+            return 1 / x
 
     @staticmethod
     @cacheit
@@ -654,7 +771,7 @@ class cos(TrigonometricFunction):
         return (exp(arg*I) + exp(-arg*I)) / 2
 
     def _eval_rewrite_as_Pow(self, arg):
-        if arg.func is log:
+        if isinstance(arg, log):
             I = S.ImaginaryUnit
             x = arg.args[0]
             return x**I/2 + x**-I/2
@@ -779,11 +896,11 @@ class cos(TrigonometricFunction):
             # if n can be factored in terms of Fermat primes with
             # multiplicity of each being 1, return those primes, else
             # False
-            from sympy import chebyshevt
             primes = []
             for p_i in cst_table_some:
-                n, r = divmod(n, p_i)
-                if not r:
+                quotient, remainder = divmod(n, p_i)
+                if remainder == 0:
+                    n = quotient
                     primes.append(p_i)
                     if n == 1:
                         return tuple(primes)
@@ -1002,29 +1119,37 @@ class tan(TrigonometricFunction):
             x, m = _peeloff_pi(arg)
             if m:
                 tanm = tan(m)
-                tanx = tan(x)
                 if tanm is S.ComplexInfinity:
                     return -cot(x)
-                return (tanm + tanx)/(1 - tanm*tanx)
+                else: # tanm == 0
+                    return tan(x)
 
-        if arg.func is atan:
+        if isinstance(arg, atan):
             return arg.args[0]
 
-        if arg.func is atan2:
+        if isinstance(arg, atan2):
             y, x = arg.args
             return y/x
 
-        if arg.func is asin:
+        if isinstance(arg, asin):
             x = arg.args[0]
             return x / sqrt(1 - x**2)
 
-        if arg.func is acos:
+        if isinstance(arg, acos):
             x = arg.args[0]
             return sqrt(1 - x**2) / x
 
-        if arg.func is acot:
+        if isinstance(arg, acot):
             x = arg.args[0]
             return 1 / x
+
+        if isinstance(arg, acsc):
+            x = arg.args[0]
+            return 1 / (sqrt(1 - 1 / x**2) * x)
+
+        if isinstance(arg, asec):
+            x = arg.args[0]
+            return sqrt(1 - 1 / x**2) * x
 
     @staticmethod
     @cacheit
@@ -1049,7 +1174,7 @@ class tan(TrigonometricFunction):
         return Function._eval_nseries(self, x, n=n, logx=logx)
 
     def _eval_rewrite_as_Pow(self, arg):
-        if arg.func is log:
+        if isinstance(arg, log):
             I = S.ImaginaryUnit
             x = arg.args[0]
             return I*(x**-I - x**I)/(x**-I + x**I)
@@ -1276,33 +1401,37 @@ class cot(TrigonometricFunction):
             x, m = _peeloff_pi(arg)
             if m:
                 cotm = cot(m)
-                if cotm == 0:
-                    return -tan(x)
-                cotx = cot(x)
                 if cotm is S.ComplexInfinity:
-                    return cotx
-                if cotm.is_Rational:
-                    return (cotm*cotx - 1) / (cotm + cotx)
-            return None
+                    return cot(x)
+                else: # cotm == 0
+                    return -tan(x)
 
-        if arg.func is acot:
+        if isinstance(arg, acot):
             return arg.args[0]
 
-        if arg.func is atan:
+        if isinstance(arg, atan):
             x = arg.args[0]
             return 1 / x
 
-        if arg.func is atan2:
+        if isinstance(arg, atan2):
             y, x = arg.args
             return x/y
 
-        if arg.func is asin:
+        if isinstance(arg, asin):
             x = arg.args[0]
             return sqrt(1 - x**2) / x
 
-        if arg.func is acos:
+        if isinstance(arg, acos):
             x = arg.args[0]
             return x / sqrt(1 - x**2)
+
+        if isinstance(arg, acsc):
+            x = arg.args[0]
+            return sqrt(1 - 1 / x**2) * x
+
+        if isinstance(arg, asec):
+            x = arg.args[0]
+            return 1 / (sqrt(1 - 1 / x**2) * x)
 
     @staticmethod
     @cacheit
@@ -1345,7 +1474,7 @@ class cot(TrigonometricFunction):
         return I*(pos_exp + neg_exp)/(pos_exp - neg_exp)
 
     def _eval_rewrite_as_Pow(self, arg):
-        if arg.func is log:
+        if isinstance(arg, log):
             I = S.ImaginaryUnit
             x = arg.args[0]
             return -I*(x**-I + x**I)/(x**-I - x**I)
@@ -2240,8 +2369,8 @@ class atan(InverseTrigonometricFunction):
         return self.args[0].is_real
 
     def _eval_rewrite_as_log(self, x):
-        return S.ImaginaryUnit/2 * (log(
-            (S(1) - S.ImaginaryUnit * x)/(S(1) + S.ImaginaryUnit * x)))
+        return S.ImaginaryUnit/2 * (log(S(1) - S.ImaginaryUnit * x)
+            - log(S(1) + S.ImaginaryUnit * x))
 
     def _eval_aseries(self, n, args0, x, logx):
         if args0[0] == S.Infinity:
@@ -2388,8 +2517,8 @@ class acot(InverseTrigonometricFunction):
             return super(atan, self)._eval_aseries(n, args0, x, logx)
 
     def _eval_rewrite_as_log(self, x):
-        return S.ImaginaryUnit/2 * \
-            (log((x - S.ImaginaryUnit)/(x + S.ImaginaryUnit)))
+        return S.ImaginaryUnit/2 * (log(1 - S.ImaginaryUnit/x)
+            - log(1 + S.ImaginaryUnit/x))
 
     def inverse(self, argindex=1):
         """
@@ -2415,7 +2544,7 @@ class acot(InverseTrigonometricFunction):
 
 
 class asec(InverseTrigonometricFunction):
-    """
+    r"""
     The inverse secant function.
 
     Returns the arc secant of x (measured in radians).
