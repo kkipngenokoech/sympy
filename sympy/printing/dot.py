@@ -1,32 +1,45 @@
 from __future__ import print_function, division
 
-from sympy import (Basic, Expr, Symbol, Integer, Rational, Float,
-    default_sort_key, Add, Mul)
+from sympy.core.basic import Basic
+from sympy.core.expr import Expr
+from sympy.core.symbol import Symbol
+from sympy.core.numbers import Integer, Rational, Float
+from sympy.core.compatibility import default_sort_key
+from sympy.core.add import Add
+from sympy.core.mul import Mul
+from sympy.printing.repr import srepr
 
 __all__ = ['dotprint']
 
-default_styles = [(Basic, {'color': 'blue', 'shape': 'ellipse'}),
-          (Expr,  {'color': 'black'})]
+default_styles = ((Basic, {'color': 'blue', 'shape': 'ellipse'}),
+          (Expr,  {'color': 'black'}))
 
 
-sort_classes = (Add, Mul)
 slotClasses = (Symbol, Integer, Rational, Float)
-# XXX: Why not just use srepr()?
-def purestr(x):
+def purestr(x, with_args=False):
     """ A string that follows obj = type(obj)(*obj.args) exactly """
+    sargs = ()
     if not isinstance(x, Basic):
-        return str(x)
-    if type(x) in slotClasses:
-        args = [getattr(x, slot) for slot in x.__slots__]
-    elif type(x) in sort_classes:
-        args = sorted(x.args, key=default_sort_key)
+        rv = str(x)
+    elif not x.args:
+        rv = srepr(x)
     else:
         args = x.args
-    return "%s(%s)"%(type(x).__name__, ', '.join(map(purestr, args)))
+        if isinstance(x, Add) or \
+                isinstance(x, Mul) and x.is_commutative:
+            args = sorted(args, key=default_sort_key)
+        sargs = tuple(map(purestr, args))
+        rv = "%s(%s)"%(type(x).__name__, ', '.join(sargs))
+    if with_args:
+        rv = rv, sargs
+    return rv
 
 
 def styleof(expr, styles=default_styles):
     """ Merge style dictionaries in order
+
+    Examples
+    ========
 
     >>> from sympy import Symbol, Basic, Expr
     >>> from sympy.printing.dot import styleof
@@ -46,8 +59,12 @@ def styleof(expr, styles=default_styles):
             style.update(sty)
     return style
 
+
 def attrprint(d, delimiter=', '):
     """ Print a dictionary of attributes
+
+    Examples
+    ========
 
     >>> from sympy.printing.dot import attrprint
     >>> print(attrprint({'color': 'blue', 'shape': 'ellipse'}))
@@ -55,13 +72,17 @@ def attrprint(d, delimiter=', '):
     """
     return delimiter.join('"%s"="%s"'%item for item in sorted(d.items()))
 
+
 def dotnode(expr, styles=default_styles, labelfunc=str, pos=(), repeat=True):
     """ String defining a node
+
+    Examples
+    ========
 
     >>> from sympy.printing.dot import dotnode
     >>> from sympy.abc import x
     >>> print(dotnode(x))
-    "Symbol(x)_()" ["color"="black", "label"="x", "shape"="ellipse"];
+    "Symbol('x')_()" ["color"="black", "label"="x", "shape"="ellipse"];
     """
     style = styleof(expr, styles)
 
@@ -81,24 +102,26 @@ def dotedges(expr, atom=lambda x: not isinstance(x, Basic), pos=(), repeat=True)
 
     See the docstring of dotprint for explanations of the options.
 
+    Examples
+    ========
+
     >>> from sympy.printing.dot import dotedges
     >>> from sympy.abc import x
     >>> for e in dotedges(x+2):
     ...     print(e)
-    "Add(Integer(2), Symbol(x))_()" -> "Integer(2)_(0,)";
-    "Add(Integer(2), Symbol(x))_()" -> "Symbol(x)_(1,)";
+    "Add(Integer(2), Symbol('x'))_()" -> "Integer(2)_(0,)";
+    "Add(Integer(2), Symbol('x'))_()" -> "Symbol('x')_(1,)";
     """
+    from sympy.utilities.misc import func_name
     if atom(expr):
         return []
     else:
-        # TODO: This is quadratic in complexity (purestr(expr) already
-        # contains [purestr(arg) for arg in expr.args]).
-        expr_str = purestr(expr)
-        arg_strs = [purestr(arg) for arg in expr.args]
+        expr_str, arg_strs = purestr(expr, with_args=True)
         if repeat:
             expr_str += '_%s' % str(pos)
-            arg_strs = [arg_str + '_%s' % str(pos + (i,)) for i, arg_str in enumerate(arg_strs)]
-        return ['"%s" -> "%s";'%(expr_str, arg_str) for arg_str in arg_strs]
+            arg_strs = ['%s_%s' % (a, str(pos + (i,)))
+                for i, a in enumerate(arg_strs)]
+        return ['"%s" -> "%s";' % (expr_str, a) for a in arg_strs]
 
 template = \
 """digraph{
@@ -119,7 +142,7 @@ template = \
 %(edges)s
 }"""
 
-graphstyle = {'rankdir': 'TD', 'ordering': 'out'}
+_graphstyle = {'rankdir': 'TD', 'ordering': 'out'}
 
 def dotprint(expr, styles=default_styles, atom=lambda x: not isinstance(x,
     Basic), maxdepth=None, repeat=True, labelfunc=str, **kwargs):
@@ -144,7 +167,7 @@ def dotprint(expr, styles=default_styles, atom=lambda x: not isinstance(x,
           ``repeat=True``, it will have two nodes for ``x`` and with
           ``repeat=False``, it will have one (warning: even if it appears
           twice in the same object, like Pow(x, x), it will still only appear
-          only once.  Hence, with repeat=False, the number of arrows out of an
+          once.  Hence, with repeat=False, the number of arrows out of an
           object might not equal the number of args it has).
 
     ``labelfunc``: How to label leaf nodes.  The default is ``str``.  Another
@@ -170,22 +193,23 @@ def dotprint(expr, styles=default_styles, atom=lambda x: not isinstance(x,
     # Nodes #
     #########
     <BLANKLINE>
-    "Add(Integer(2), Symbol(x))_()" ["color"="black", "label"="Add", "shape"="ellipse"];
+    "Add(Integer(2), Symbol('x'))_()" ["color"="black", "label"="Add", "shape"="ellipse"];
     "Integer(2)_(0,)" ["color"="black", "label"="2", "shape"="ellipse"];
-    "Symbol(x)_(1,)" ["color"="black", "label"="x", "shape"="ellipse"];
+    "Symbol('x')_(1,)" ["color"="black", "label"="x", "shape"="ellipse"];
     <BLANKLINE>
     #########
     # Edges #
     #########
     <BLANKLINE>
-    "Add(Integer(2), Symbol(x))_()" -> "Integer(2)_(0,)";
-    "Add(Integer(2), Symbol(x))_()" -> "Symbol(x)_(1,)";
+    "Add(Integer(2), Symbol('x'))_()" -> "Integer(2)_(0,)";
+    "Add(Integer(2), Symbol('x'))_()" -> "Symbol('x')_(1,)";
     }
 
     """
     # repeat works by adding a signature tuple to the end of each node for its
     # position in the graph. For example, for expr = Add(x, Pow(x, 2)), the x in the
     # Pow will have the tuple (1, 0), meaning it is expr.args[1].args[0].
+    graphstyle = _graphstyle.copy()
     graphstyle.update(kwargs)
 
     nodes = []
