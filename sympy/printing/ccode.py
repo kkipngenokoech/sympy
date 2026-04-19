@@ -19,6 +19,8 @@ from sympy.codegen.ast import Assignment
 from sympy.printing.codeprinter import CodePrinter
 from sympy.printing.precedence import precedence
 from sympy.sets.fancysets import Range
+from sympy.functions import Piecewise, sin
+from sympy.core.relational import Ne
 
 # dictionary mapping sympy function to (argument_conditions, C_function).
 # Used in CCodePrinter._print_Function(self)
@@ -250,6 +252,13 @@ class CCodePrinter(CodePrinter):
 
     def _print_sign(self, func):
         return '((({0}) > 0) - (({0}) < 0))'.format(self._print(func.args[0]))
+
+    def _print_sinc(self, expr):
+        from sympy.functions import Piecewise, sin
+        from sympy.core.relational import Ne
+        x = expr.args[0]
+        piecewise_expr = Piecewise((sin(x)/x, Ne(x, 0)), (1, True))
+        return self._print(piecewise_expr)
 
     def indent_code(self, code):
         """Accepts a string of code or a list of code lines"""
