@@ -228,6 +228,9 @@ class Pow(Expr):
                 if obj is not None:
                     return obj
         obj = Expr.__new__(cls, b, e)
+        obj = cls._exec_constructor_postprocessors(obj)
+        if not isinstance(obj, Pow):
+            return obj
         obj.is_commutative = (b.is_commutative and e.is_commutative)
         return obj
 
@@ -288,7 +291,7 @@ class Pow(Expr):
                 # floor(S.Half - e*arg(b)/2/pi) == 0
 
                 # handle -1 as special case
-                if (e == -1) == True:
+                if e == -1:
                     # floor arg. is 1/2 + arg(b)/2/pi
                     if _half(other):
                         if b.is_negative is True:
@@ -301,13 +304,13 @@ class Pow(Expr):
                     if b.is_imaginary:
                         b = abs(im(b))*S.ImaginaryUnit
 
-                if (abs(e) < 1) == True or (e == 1) == True:
+                if (abs(e) < 1) == True or e == 1:
                     s = 1  # floor = 0
                 elif b.is_nonnegative:
                     s = 1  # floor = 0
                 elif re(b).is_nonnegative and (abs(e) < 2) == True:
                     s = 1  # floor = 0
-                elif fuzzy_not(im(b).is_zero) and (abs(e) == 2) == True:
+                elif fuzzy_not(im(b).is_zero) and abs(e) == 2:
                     s = 1  # floor = 0
                 elif _half(other):
                     s = exp(2*S.Pi*S.ImaginaryUnit*other*floor(
@@ -735,6 +738,9 @@ class Pow(Expr):
             nc = [Mul(*nc)]
 
         # sift the commutative bases
+        sifted = sift(cargs, lambda x: x.is_real)
+        maybe_real = sifted[True] + sifted[None]
+        other = sifted[False]
         def pred(x):
             if x is S.ImaginaryUnit:
                 return S.ImaginaryUnit
@@ -743,9 +749,9 @@ class Pow(Expr):
                 return True
             if polar is None:
                 return fuzzy_bool(x.is_nonnegative)
-        sifted = sift(cargs, pred)
+        sifted = sift(maybe_real, pred)
         nonneg = sifted[True]
-        other = sifted[None]
+        other += sifted[None]
         neg = sifted[False]
         imag = sifted[S.ImaginaryUnit]
         if imag:
@@ -1056,7 +1062,14 @@ class Pow(Expr):
                 return e.is_zero
 
     def _eval_is_algebraic(self):
-        if self.base.is_zero or (self.base - 1).is_zero:
+        def _is_one(expr):
+            try:
+                return (expr - 1).is_zero
+            except ValueError:
+                # when the operation is not allowed
+                return False
+
+        if self.base.is_zero or _is_one(self.base):
             return True
         elif self.exp.is_rational:
             if self.base.is_algebraic is False:
@@ -1064,7 +1077,7 @@ class Pow(Expr):
             return self.base.is_algebraic
         elif self.base.is_algebraic and self.exp.is_algebraic:
             if ((fuzzy_not(self.base.is_zero)
-                and fuzzy_not((self.base - 1).is_zero))
+                and fuzzy_not(_is_one(self.base)))
                 or self.base.is_integer is False
                 or self.base.is_irrational):
                 return self.exp.is_rational

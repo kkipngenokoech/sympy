@@ -1,6 +1,7 @@
 """Base class for all the objects in SymPy"""
 from __future__ import print_function, division
-from collections import Mapping
+from collections import Mapping, defaultdict
+from itertools import chain
 
 from .assumptions import BasicMeta, ManagedProperties
 from .cache import cacheit
@@ -415,7 +416,7 @@ class Basic(with_metaclass(ManagedProperties)):
            >>> from sympy import I, pi, sin
            >>> from sympy.abc import x, y
            >>> (1 + x + 2*sin(y + I*pi)).atoms()
-           set([1, 2, I, pi, x, y])
+           {1, 2, I, pi, x, y}
 
            If one or more types are given, the results will contain only
            those types of atoms.
@@ -425,16 +426,16 @@ class Basic(with_metaclass(ManagedProperties)):
 
            >>> from sympy import Number, NumberSymbol, Symbol
            >>> (1 + x + 2*sin(y + I*pi)).atoms(Symbol)
-           set([x, y])
+           {x, y}
 
            >>> (1 + x + 2*sin(y + I*pi)).atoms(Number)
-           set([1, 2])
+           {1, 2}
 
            >>> (1 + x + 2*sin(y + I*pi)).atoms(Number, NumberSymbol)
-           set([1, 2, pi])
+           {1, 2, pi}
 
            >>> (1 + x + 2*sin(y + I*pi)).atoms(Number, NumberSymbol, I)
-           set([1, 2, I, pi])
+           {1, 2, I, pi}
 
            Note that I (imaginary unit) and zoo (complex infinity) are special
            types of number symbols and are not part of the NumberSymbol class.
@@ -442,7 +443,7 @@ class Basic(with_metaclass(ManagedProperties)):
            The type can be given implicitly, too:
 
            >>> (1 + x + 2*sin(y + I*pi)).atoms(x) # x is a Symbol
-           set([x, y])
+           {x, y}
 
            Be careful to check your assumptions when using the implicit option
            since ``S(1).is_Integer = True`` but ``type(S(1))`` is ``One``, a special type
@@ -451,10 +452,10 @@ class Basic(with_metaclass(ManagedProperties)):
 
            >>> from sympy import S
            >>> (1 + x + 2*sin(y + I*pi)).atoms(S(1))
-           set([1])
+           {1}
 
            >>> (1 + x + 2*sin(y + I*pi)).atoms(S(2))
-           set([1, 2])
+           {1, 2}
 
            Finally, arguments to atoms() can select more than atomic atoms: any
            sympy type (loaded in core/__init__.py) can be listed as an argument
@@ -465,12 +466,12 @@ class Basic(with_metaclass(ManagedProperties)):
            >>> from sympy.core.function import AppliedUndef
            >>> f = Function('f')
            >>> (1 + f(x) + 2*sin(y + I*pi)).atoms(Function)
-           set([f(x), sin(y + I*pi)])
+           {f(x), sin(y + I*pi)}
            >>> (1 + f(x) + 2*sin(y + I*pi)).atoms(AppliedUndef)
-           set([f(x)])
+           {f(x)}
 
            >>> (1 + x + 2*sin(y + I*pi)).atoms(Mul)
-           set([I*pi, 2*sin(y + I*pi)])
+           {I*pi, 2*sin(y + I*pi)}
 
         """
         if types:
@@ -1143,7 +1144,7 @@ class Basic(with_metaclass(ManagedProperties)):
 
         >>> from sympy.sets import Interval
         >>> i = Interval.Lopen(0, 5); i
-        (0, 5]
+        Interval.Lopen(0, 5)
         >>> i.args
         (0, 5, True, False)
         >>> i.has(4)  # there is no "4" in the arguments
@@ -1623,7 +1624,10 @@ class Basic(with_metaclass(ManagedProperties)):
             if isinstance(args[-1], string_types):
                 rule = '_eval_rewrite_as_' + args[-1]
             else:
-                rule = '_eval_rewrite_as_' + args[-1].__name__
+                try:
+                    rule = '_eval_rewrite_as_' + args[-1].__name__
+                except:
+                    rule = '_eval_rewrite_as_' + args[-1].__class__.__name__
 
             if not pattern:
                 return self._eval_rewrite(None, rule, **hints)
@@ -1637,6 +1641,43 @@ class Basic(with_metaclass(ManagedProperties)):
                     return self._eval_rewrite(tuple(pattern), rule, **hints)
                 else:
                     return self
+
+    _constructor_postprocessor_mapping = {}
+
+    @classmethod
+    def _exec_constructor_postprocessors(cls, obj):
+        # WARNING: This API is experimental.
+
+        # This is an experimental API that introduces constructor
+        # postprosessors for SymPy Core elements. If an argument of a SymPy
+        # expression has a `_constructor_postprocessor_mapping` attribute, it will
+        # be interpreted as a dictionary containing lists of postprocessing
+        # functions for matching expression node names.
+
+        clsname = obj.__class__.__name__
+        postprocessors = defaultdict(list)
+        for i in obj.args:
+            try:
+                if i in Basic._constructor_postprocessor_mapping:
+                    for k, v in Basic._constructor_postprocessor_mapping[i].items():
+                        postprocessors[k].extend([j for j in v if j not in postprocessors[k]])
+                else:
+                    postprocessor_mappings = (
+                        Basic._constructor_postprocessor_mapping[cls].items()
+                        for cls in type(i).mro()
+                        if cls in Basic._constructor_postprocessor_mapping
+                    )
+                    for k, v in chain.from_iterable(postprocessor_mappings):
+                        postprocessors[k].extend([j for j in v if j not in postprocessors[k]])
+            except TypeError:
+                pass
+
+        for f in postprocessors.get(clsname, []):
+            obj = f(obj)
+        if len(postprocessors) > 0 and obj not in Basic._constructor_postprocessor_mapping:
+            Basic._constructor_postprocessor_mapping[obj] = postprocessors
+
+        return obj
 
 
 class Atom(Basic):
@@ -1732,11 +1773,11 @@ def _atomic(e):
     >>> from sympy.core.basic import _atomic
     >>> f = Function('f')
     >>> _atomic(x + y)
-    set([x, y])
+    {x, y}
     >>> _atomic(x + f(y))
-    set([x, f(y)])
+    {x, f(y)}
     >>> _atomic(Derivative(f(x), x) + cos(x) + y)
-    set([y, cos(x), Derivative(f(x), x)])
+    {y, cos(x), Derivative(f(x), x)}
 
     """
     from sympy import Derivative, Function, Symbol
