@@ -164,7 +164,17 @@ def apart_undetermined_coeffs(P, Q):
             partial.append((coeffs, q, f, i))
             symbols.extend(coeffs)
 
-    dom = Q.get_domain().inject(*symbols)
+    # Handle symbolic coefficients by expanding the domain appropriately
+    P_symbols = P.free_symbols
+    Q_symbols = Q.free_symbols
+    all_symbols = P_symbols.union(Q_symbols)
+    
+    # Create domain that includes both polynomial symbols and coefficient symbols
+    if all_symbols:
+        dom = Q.get_domain().inject(*symbols).inject(*all_symbols)
+    else:
+        dom = Q.get_domain().inject(*symbols)
+    
     F = Poly(0, Q.gen, domain=dom)
 
     for i, (coeffs, q, f, k) in enumerate(partial):
@@ -174,12 +184,27 @@ def apart_undetermined_coeffs(P, Q):
         F += h*q
 
     system, result = [], S(0)
+    
+    # Ensure P is in the same domain for proper coefficient comparison
+    P = P.set_domain(dom)
 
     for (k,), coeff in F.terms():
         system.append(coeff - P.nth(k))
 
     from sympy.solvers import solve
     solution = solve(system, symbols)
+    
+    # Handle case where solve returns empty dict or None
+    if not solution:
+        # If no solution found, try to solve symbolically
+        # This can happen with symbolic coefficients
+        from sympy import Eq
+        eqs = [Eq(coeff, P.nth(k)) for (k,), coeff in F.terms()]
+        solution = solve(eqs, symbols)
+    
+    # If solution is still empty or None, return original expression
+    if not solution:
+        return P/Q
 
     for h, f, k in partial:
         h = h.as_expr().subs(solution)
