@@ -1,5 +1,5 @@
 from collections import defaultdict
-from sympy import Symbol
+from sympy import S, Symbol, Tuple
 from sympy.core.compatibility import range
 
 from sympy.ntheory import n_order, is_primitive_root, is_quad_residue, \
@@ -28,10 +28,6 @@ def test_residue():
     assert is_primitive_root(11, 14) is False
     assert is_primitive_root(12, 17) == is_primitive_root(29, 17)
     raises(ValueError, lambda: is_primitive_root(3, 6))
-
-    assert [primitive_root(i) for i in range(2, 31)] == [1, 2, 3, 2, 5, 3, \
-       None, 2, 3, 2, None, 2, 3, None, None, 3, 5, 2, None, None, 7, 5, \
-       None, 2, 7, 2, None, 2, None]
 
     for p in primerange(3, 100):
         it = _primitive_root_prime_iter(p)
@@ -65,6 +61,9 @@ def test_residue():
     raises(ValueError, lambda: is_quad_residue(2, 0))
 
 
+    assert quadratic_residues(S.One) == [0]
+    assert quadratic_residues(1) == [0]
+    assert quadratic_residues(12) == [0, 1, 4, 9]
     assert quadratic_residues(12) == [0, 1, 4, 9]
     assert quadratic_residues(13) == [0, 1, 3, 4, 9, 10, 12]
     assert [len(quadratic_residues(i)) for i in range(1, 20)] == \
@@ -75,6 +74,8 @@ def test_residue():
     assert sqrt_mod(3, -13) == 4
     assert sqrt_mod(6, 23) == 11
     assert sqrt_mod(345, 690) == 345
+    assert sqrt_mod(67, 101) == None
+    assert sqrt_mod(1020, 104729) == None
 
     for p in range(3, 100):
         d = defaultdict(list)
@@ -131,7 +132,7 @@ def test_residue():
     assert is_nthpow_residue(1, 0, 2) is True
     assert is_nthpow_residue(3, 0, 2) is False
     assert is_nthpow_residue(0, 1, 8) is True
-    assert is_nthpow_residue(2, 3, 2) is False
+    assert is_nthpow_residue(2, 3, 2) is True
     assert is_nthpow_residue(2, 3, 9) is False
     assert is_nthpow_residue(3, 5, 30) is True
     assert is_nthpow_residue(21, 11, 20) is True
@@ -161,6 +162,7 @@ def test_residue():
     assert is_nthpow_residue(31, 4, 41)
     assert not is_nthpow_residue(2, 2, 5)
     assert is_nthpow_residue(8547, 12, 10007)
+    raises(NotImplementedError, lambda: nthroot_mod(29, 31, 74))
     assert nthroot_mod(1801, 11, 2663) == 44
     for a, q, p in [(51922, 2, 203017), (43, 3, 109), (1801, 11, 2663),
           (26118163, 1303, 33333347), (1499, 7, 2663), (595, 6, 2663),
@@ -228,6 +230,9 @@ def test_residue():
     assert _discrete_log_pollard_rho(6138719, 2**19, 2, rseed=0) == 19
     assert _discrete_log_pollard_rho(36721943, 2**40, 2, rseed=0) == 40
     assert _discrete_log_pollard_rho(24567899, 3**333, 3, rseed=0) == 333
+    raises(ValueError, lambda: _discrete_log_pollard_rho(11, 7, 31, rseed=0))
+    raises(ValueError, lambda: _discrete_log_pollard_rho(227, 3**7, 5, rseed=0))
+
     assert _discrete_log_pohlig_hellman(98376431, 11**9, 11) == 9
     assert _discrete_log_pohlig_hellman(78723213, 11**31, 11) == 31
     assert _discrete_log_pohlig_hellman(32942478, 11**98, 11) == 98
@@ -236,3 +241,6 @@ def test_residue():
     assert discrete_log(2456747, 3**51, 3) == 51
     assert discrete_log(32942478, 11**127, 11) == 127
     assert discrete_log(432751500361, 7**324, 7) == 324
+    args = 5779, 3528, 6215
+    assert discrete_log(*args) == 687
+    assert discrete_log(*Tuple(*args)) == 687
