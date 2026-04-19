@@ -17,7 +17,7 @@ def warn_with_traceback(message, category, filename, lineno, file=None, line=Non
     log = file if hasattr(file,'write') else sys.stderr
     log.write(warnings.formatwarning(message, category, filename, lineno, line))
 warnings.showwarning = warn_with_traceback
-warnings.simplefilter('always', UserWarning)     # make sure to show warnings every time they occurr
+warnings.simplefilter('always', UserWarning)     # make sure to show warnings every time they occur
 
 
 def test_point():
@@ -56,6 +56,8 @@ def test_point():
     assert Point.distance(p3, p2) == sqrt(p2.x**2 + p2.y**2)
 
     assert Point.taxicab_distance(p4, p3) == 2
+
+    assert Point.canberra_distance(p4, p5) == 1
 
     p1_1 = Point(x1, x1)
     p1_2 = Point(y2, y2)
@@ -391,3 +393,24 @@ def test__normalize_dimension():
     assert Point._normalize_dimension(
         Point(1, 2), Point(3, 4, 0), on_morph='ignore') == [
         Point(1, 2, 0), Point(3, 4, 0)]
+
+
+def test_direction_cosine():
+    p1 = Point3D(0, 0, 0)
+    p2 = Point3D(1, 1, 1)
+
+    assert p1.direction_cosine(Point3D(1, 0, 0)) == [1, 0, 0]
+    assert p1.direction_cosine(Point3D(0, 1, 0)) == [0, 1, 0]
+    assert p1.direction_cosine(Point3D(0, 0, pi)) == [0, 0, 1]
+
+    assert p1.direction_cosine(Point3D(5, 0, 0)) == [1, 0, 0]
+    assert p1.direction_cosine(Point3D(0, sqrt(3), 0)) == [0, 1, 0]
+    assert p1.direction_cosine(Point3D(0, 0, 5)) == [0, 0, 1]
+
+    assert p1.direction_cosine(Point3D(2.4, 2.4, 0)) == [sqrt(2)/2, sqrt(2)/2, 0]
+    assert p1.direction_cosine(Point3D(1, 1, 1)) == [sqrt(3) / 3, sqrt(3) / 3, sqrt(3) / 3]
+    assert p1.direction_cosine(Point3D(-12, 0 -15)) == [-4*sqrt(41)/41, -5*sqrt(41)/41, 0]
+
+    assert p2.direction_cosine(Point3D(0, 0, 0)) == [-sqrt(3) / 3, -sqrt(3) / 3, -sqrt(3) / 3]
+    assert p2.direction_cosine(Point3D(1, 1, 12)) == [0, 0, 1]
+    assert p2.direction_cosine(Point3D(12, 1, 12)) == [sqrt(2) / 2, 0, sqrt(2) / 2]
