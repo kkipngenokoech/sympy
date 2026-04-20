@@ -1,3 +1,5 @@
+.. _matrices:
+
 ==========
  Matrices
 ==========
@@ -149,7 +151,7 @@ raise it to the ``-1`` power.
     >>> N**-1
     Traceback (most recent call last):
     ...
-    ValueError: Matrix det == 0; not invertible.
+    NonInvertibleMatrixError: Matrix det == 0; not invertible.
 
 To take the transpose of a Matrix, use ``T``.
 
@@ -267,7 +269,7 @@ second is a tuple of indices of the pivot columns.
     ⎝⎣0  0   0    0 ⎦        ⎠
 
 .. Note:: The first element of the tuple returned by ``rref`` is of type
-   ``Matrix``. The second is of type ``list``.
+   ``Matrix``. The second is of type ``tuple``.
 
 Nullspace
 ---------
@@ -406,3 +408,223 @@ expensive to calculate.
     (λ - 5) ⋅(λ - 3)⋅(λ + 2)
 
 .. TODO: Add an example for ``jordan_form``, once it is fully implemented.
+
+Possible Issues
+===============
+
+Controlling matrix expression blowup
+------------------------------------
+
+Normally a matrix ``*`` multiplication or ``**`` power will not simplify
+intermediate terms as they are calcualted to give the best general performance.
+Unfortunately this can lead to an explosion in the size and complexity of matrix
+element symbolic expressions (including complex number expressions), and even
+impair the ability of the calculation to finish, though in the majority of small
+matrices it is much faster. This can be a problem however for larger matrices
+and can even cause multiplication to never end or may be impossible to simplify
+afterwards.
+
+For this reason two separate functions - ``multiply`` and ``pow`` for
+multiplication and exponentiation have been added with a flag which allows you
+to specify that an optimized intermediate simplification step is to be performed
+at each step of calculation. The matrix ``exp`` function has also been modified
+to take this flag. By default these functions have the flag ``dotprodsimp`` set
+to None which means that intermediate simplification is not done, set this to
+``True`` to use the simplification. This will leave the matrix in a relatively
+simplified state after the operation and permit calculations on some large
+matrices which were not possible or extremely slow previously.
+
+This flag has also been added to the majority of matrix functions to enable
+this intermedate simplification in order to speed up calculation in many
+instances and return a simplified result. NOTE: It does not work in all cases,
+but so far testing has shown that it helps with the majority.
+
+    >>> x = Symbol('x')
+    >>> M = Matrix([[1+x, 1-x], [1-x, 1+x]])
+    >>> M*M
+    ⎡       2          2                     ⎤
+    ⎢(1 - x)  + (x + 1)    2⋅(1 - x)⋅(x + 1) ⎥
+    ⎢                                        ⎥
+    ⎢                            2          2⎥
+    ⎣ 2⋅(1 - x)⋅(x + 1)   (1 - x)  + (x + 1) ⎦
+    >>> M.multiply(M, dotprodsimp=True)
+    ⎡   2             2⎤
+    ⎢2⋅x  + 2  2 - 2⋅x ⎥
+    ⎢                  ⎥
+    ⎢       2     2    ⎥
+    ⎣2 - 2⋅x   2⋅x  + 2⎦
+    >>> M**2
+    ⎡       2          2                     ⎤
+    ⎢(1 - x)  + (x + 1)    2⋅(1 - x)⋅(x + 1) ⎥
+    ⎢                                        ⎥
+    ⎢                            2          2⎥
+    ⎣ 2⋅(1 - x)⋅(x + 1)   (1 - x)  + (x + 1) ⎦
+    >>> M.pow(8, dotprodsimp=True)
+    ⎡     8                   8⎤
+    ⎢128⋅x  + 128  128 - 128⋅x ⎥
+    ⎢                          ⎥
+    ⎢           8       8      ⎥
+    ⎣128 - 128⋅x   128⋅x  + 128⎦
+    >>> M.exp()
+    ⎡                               ⎛  1 - x      ⎞  2               ⎤
+    ⎢           2    2⋅x    (1 - x)⋅⎜───────── + 1⎟⋅ℯ             2⋅x⎥
+    ⎢  (1 - x)⋅ℯ    ℯ               ⎝2⋅(x - 1)    ⎠      (1 - x)⋅ℯ   ⎥
+    ⎢- ────────── + ────  - ────────────────────────── + ────────────⎥
+    ⎢  2⋅(x - 1)     2                x - 1               2⋅(x - 1)  ⎥
+    ⎢                                                                ⎥
+    ⎢       2⋅x    2                     2⋅x                         ⎥
+    ⎢      ℯ      ℯ             (1 - x)⋅ℯ      ⎛  1 - x      ⎞  2    ⎥
+    ⎢    - ──── + ──          - ──────────── + ⎜───────── + 1⎟⋅ℯ     ⎥
+    ⎣       2     2              2⋅(x - 1)     ⎝2⋅(x - 1)    ⎠       ⎦
+    >>> M.exp(dotprodsimp=True)
+    ⎡  2⋅x    2      2⋅x    2⎤
+    ⎢ ℯ      ℯ      ℯ      ℯ ⎥
+    ⎢ ──── + ──   - ──── + ──⎥
+    ⎢  2     2       2     2 ⎥
+    ⎢                        ⎥
+    ⎢   2⋅x    2    2⋅x    2 ⎥
+    ⎢  ℯ      ℯ    ℯ      ℯ  ⎥
+    ⎢- ──── + ──   ──── + ── ⎥
+    ⎣   2     2     2     2  ⎦
+
+Zero Testing
+------------
+
+If your matrix operations are failing or returning wrong answers,
+the common reasons would likely be from zero testing.
+If there is an expression not properly zero-tested,
+it can possibly bring issues in finding pivots for gaussian elimination,
+or deciding whether the matrix is inversible,
+or any high level functions which relies on the prior procedures.
+
+Currently, the SymPy's default method of zero testing ``_iszero`` is only
+guaranteed to be accurate in some limited domain of numerics and symbols,
+and any complicated expressions beyond its decidability are treated as ``None``,
+which behaves similarly to logical ``False``.
+
+The list of methods using zero testing procedures are as follows:
+
+``echelon_form`` , ``is_echelon`` , ``rank`` , ``rref`` , ``nullspace`` ,
+``eigenvects`` , ``inverse_ADJ`` , ``inverse_GE`` , ``inverse_LU`` ,
+``LUdecomposition`` , ``LUdecomposition_Simple`` , ``LUsolve``
+
+They have property ``iszerofunc`` opened up for user to specify zero testing
+method, which can accept any function with single input and boolean output,
+while being defaulted with ``_iszero``.
+
+Here is an example of solving an issue caused by undertested zero.
+[#zerotestexampleidea-fn]_ [#zerotestexamplediscovery-fn]_
+
+    >>> from sympy import *
+    >>> q = Symbol("q", positive = True)
+    >>> m = Matrix([
+    ... [-2*cosh(q/3),      exp(-q),            1],
+    ... [      exp(q), -2*cosh(q/3),            1],
+    ... [           1,            1, -2*cosh(q/3)]])
+    >>> m.nullspace()
+    []
+
+You can trace down which expression is being underevaluated,
+by injecting a custom zero test with warnings enabled.
+
+    >>> import warnings
+    >>>
+    >>> def my_iszero(x):
+    ...     try:
+    ...         result = x.is_zero
+    ...     except AttributeError:
+    ...         result = None
+    ...
+    ...     # Warnings if evaluated into None
+    ...     if result is None:
+    ...         warnings.warn("Zero testing of {} evaluated into None".format(x))
+    ...     return result
+    ...
+    >>> m.nullspace(iszerofunc=my_iszero) # doctest: +SKIP
+    __main__:9: UserWarning: Zero testing of 4*cosh(q/3)**2 - 1 evaluated into None
+    __main__:9: UserWarning: Zero testing of (-exp(q) - 2*cosh(q/3))*(-2*cosh(q/3) - exp(-q)) - (4*cosh(q/3)**2 - 1)**2 evaluated into None
+    __main__:9: UserWarning: Zero testing of 2*exp(q)*cosh(q/3) - 16*cosh(q/3)**4 + 12*cosh(q/3)**2 + 2*exp(-q)*cosh(q/3) evaluated into None
+    __main__:9: UserWarning: Zero testing of -(4*cosh(q/3)**2 - 1)*exp(-q) - 2*cosh(q/3) - exp(-q) evaluated into None
+    []
+
+In this case,
+``(-exp(q) - 2*cosh(q/3))*(-2*cosh(q/3) - exp(-q)) - (4*cosh(q/3)**2 - 1)**2``
+should yield zero, but the zero testing had failed to catch.
+possibly meaning that a stronger zero test should be introduced.
+For this specific example, rewriting to exponentials and applying simplify would
+make zero test stronger for hyperbolics,
+while being harmless to other polynomials or transcendental functions.
+
+    >>> def my_iszero(x):
+    ...     try:
+    ...         result = x.rewrite(exp).simplify().is_zero
+    ...     except AttributeError:
+    ...         result = None
+    ...
+    ...     # Warnings if evaluated into None
+    ...     if result is None:
+    ...         warnings.warn("Zero testing of {} evaluated into None".format(x))
+    ...     return result
+    ...
+    >>> m.nullspace(iszerofunc=my_iszero) # doctest: +SKIP
+    __main__:9: UserWarning: Zero testing of -2*cosh(q/3) - exp(-q) evaluated into None
+    ⎡⎡  ⎛   q         ⎛q⎞⎞  -q         2⎛q⎞    ⎤⎤
+    ⎢⎢- ⎜- ℯ  - 2⋅cosh⎜─⎟⎟⋅ℯ   + 4⋅cosh ⎜─⎟ - 1⎥⎥
+    ⎢⎢  ⎝             ⎝3⎠⎠              ⎝3⎠    ⎥⎥
+    ⎢⎢─────────────────────────────────────────⎥⎥
+    ⎢⎢          ⎛      2⎛q⎞    ⎞     ⎛q⎞       ⎥⎥
+    ⎢⎢        2⋅⎜4⋅cosh ⎜─⎟ - 1⎟⋅cosh⎜─⎟       ⎥⎥
+    ⎢⎢          ⎝       ⎝3⎠    ⎠     ⎝3⎠       ⎥⎥
+    ⎢⎢                                         ⎥⎥
+    ⎢⎢           ⎛   q         ⎛q⎞⎞            ⎥⎥
+    ⎢⎢          -⎜- ℯ  - 2⋅cosh⎜─⎟⎟            ⎥⎥
+    ⎢⎢           ⎝             ⎝3⎠⎠            ⎥⎥
+    ⎢⎢          ────────────────────           ⎥⎥
+    ⎢⎢                   2⎛q⎞                  ⎥⎥
+    ⎢⎢             4⋅cosh ⎜─⎟ - 1              ⎥⎥
+    ⎢⎢                    ⎝3⎠                  ⎥⎥
+    ⎢⎢                                         ⎥⎥
+    ⎣⎣                    1                    ⎦⎦
+
+You can clearly see ``nullspace`` returning proper result, after injecting an
+alternative zero test.
+
+Note that this approach is only valid for some limited cases of matrices
+containing only numerics, hyperbolics, and exponentials.
+For other matrices, you should use different method opted for their domains.
+
+Possible suggestions would be either taking advantage of rewriting and
+simplifying, with tradeoff of speed [#zerotestsimplifysolution-fn]_ ,
+or using random numeric testing, with tradeoff of accuracy
+[#zerotestnumerictestsolution-fn]_ .
+
+If you wonder why there is no generic algorithm for zero testing that can work
+with any symbolic entities,
+it's because of the constant problem stating that zero testing is undecidable
+[#constantproblemwikilink-fn]_ ,
+and not only the SymPy, but also other computer algebra systems
+[#mathematicazero-fn]_ [#matlabzero-fn]_
+would face the same fundamental issue.
+
+However, discovery of any zero test failings can provide some good examples to
+improve SymPy,
+so if you have encountered one, you can report the issue to
+SymPy issue tracker [#sympyissues-fn]_ to get detailed help from the community.
+
+.. rubric:: Footnotes
+
+.. [#zerotestexampleidea-fn] Inspired by https://gitter.im/sympy/sympy?at=5b7c3e8ee5b40332abdb206c
+
+.. [#zerotestexamplediscovery-fn] Discovered from https://github.com/sympy/sympy/issues/15141
+
+.. [#zerotestsimplifysolution-fn] Suggested from https://github.com/sympy/sympy/issues/10120
+
+.. [#zerotestnumerictestsolution-fn] Suggested from https://github.com/sympy/sympy/issues/10279
+
+.. [#constantproblemwikilink-fn] https://en.wikipedia.org/wiki/Constant_problem
+
+.. [#mathematicazero-fn] How mathematica tests zero https://reference.wolfram.com/language/ref/PossibleZeroQ.html
+
+.. [#matlabzero-fn] How matlab tests zero https://www.mathworks.com/help/symbolic/mupad_ref/iszero.html
+
+.. [#sympyissues-fn] https://github.com/sympy/sympy/issues
