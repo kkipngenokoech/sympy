@@ -21,8 +21,9 @@ from sympy.utilities.pytest import raises, XFAIL, slow, skip
 from sympy.utilities.exceptions import SymPyDeprecationWarning
 from sympy.solvers import solve
 from sympy.assumptions import Q
+from sympy.tensor.array import Array
 
-from sympy.abc import a, b, c, d, x, y, z
+from sympy.abc import a, b, c, d, x, y, z, t
 
 # don't re-order this list
 classes = (Matrix, SparseMatrix, ImmutableMatrix, ImmutableSparseMatrix)
@@ -580,6 +581,20 @@ def test_random():
 
     rng = random.Random(4)
     assert M == randMatrix(3, symmetric=True, prng=rng)
+
+    # Ensure symmetry
+    for size in (10, 11): # Test odd and even
+        for percent in (100, 70, 30):
+            M = randMatrix(size, symmetric=True, percent=percent, prng=rng)
+            assert M == M.T
+
+    M = randMatrix(10, min=1, percent=70)
+    zero_count = 0
+    for i in range(M.shape[0]):
+        for j in range(M.shape[1]):
+            if M[i, j] == 0:
+                zero_count += 1
+    assert zero_count == 30
 
 
 def test_LUdecomp():
@@ -1728,8 +1743,12 @@ def test_Matrix_berkowitz_charpoly():
     assert type(charpoly) is PurePoly
 
     A = Matrix([[1, 3], [2, 0]])
-
     assert A.charpoly() == A.charpoly(x) == PurePoly(x**2 - x - 6)
+
+    A = Matrix([[1, 2], [x, 0]])
+    p = A.charpoly(x)
+    assert p.gen != x
+    assert p.as_expr().subs(p.gen, x) == x**2 - 3*x
 
 
 def test_exp():
@@ -1919,6 +1938,30 @@ def test_diff():
 
     assert diff(A_imm, x) == ImmutableDenseMatrix(((0, 0, 1), (0, 0, 0), (0, 0, 2*x)))
     assert diff(A_imm, y) == ImmutableDenseMatrix(((0, 0, 0), (1, 0, 0), (0, 0, 0)))
+
+    # Derive matrix by matrix:
+
+    A = MutableDenseMatrix([[x, y], [z, t]])
+    assert A.diff(A) == Array([[[[1, 0], [0, 0]], [[0, 1], [0, 0]]], [[[0, 0], [1, 0]], [[0, 0], [0, 1]]]])
+    assert diff(A, A) == Array([[[[1, 0], [0, 0]], [[0, 1], [0, 0]]], [[[0, 0], [1, 0]], [[0, 0], [0, 1]]]])
+
+    A_imm = A.as_immutable()
+    assert A_imm.diff(A_imm) == Array([[[[1, 0], [0, 0]], [[0, 1], [0, 0]]], [[[0, 0], [1, 0]], [[0, 0], [0, 1]]]])
+    assert diff(A_imm, A_imm) == Array([[[[1, 0], [0, 0]], [[0, 1], [0, 0]]], [[[0, 0], [1, 0]], [[0, 0], [0, 1]]]])
+
+    # Derive a constant matrix:
+    assert A.diff(a) == MutableDenseMatrix([[0, 0], [0, 0]])
+
+    B = ImmutableDenseMatrix([a, b])
+    assert A.diff(B) == Array(
+        [[[
+            [0,0],
+            [0,0]
+        ]],
+        [[
+            [0,0],
+            [0,0]
+        ]]])
 
 
 def test_getattr():
@@ -2126,6 +2169,10 @@ def test_matrix_norm():
                 dif = simplify((alpha*X).norm(order) -
                     (abs(alpha) * X.norm(order)))
                 assert dif == 0
+
+    # ord=1
+    M = Matrix(3, 3, [1, 3, 0, -2, -1, 0, 3, 9, 6])
+    assert M.norm(1) == 13
 
 
 def test_condition_number():
@@ -2747,6 +2794,14 @@ def test_gauss_jordan_solve():
                          [-2*w['tau0'] - 3*w['tau1'] - 1/S(4)],
                          [w['tau0']], [w['tau1']]])
     assert params == Matrix([[w['tau0']], [w['tau1']]])
+    # watch out for clashing symbols
+    x0, x1, x2, _x0 = symbols('_tau0 _tau1 _tau2 tau1')
+    M = Matrix([[0, 1, 0, 0, 0, 0], [0, 0, 0, 1, 0, _x0]])
+    A = M[:, :-1]
+    b = M[:, -1:]
+    sol, params = A.gauss_jordan_solve(b)
+    assert params == Matrix(3, 1, [x0, x1, x2])
+    assert sol == Matrix(5, 1, [x1, 0, x0, _x0, x2])
 
     # Rectangular, wide, reduced rank, no solution
     A = Matrix([[1, 2, 3, 4], [5, 6, 7, 8], [2, 4, 6, 8]])

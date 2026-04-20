@@ -8,7 +8,7 @@ from sympy import (
     RisingFactorial, rootof, RootSum, S, Shi, Si, SineTransform, Subs,
     Sum, Symbol, ImageSet, Tuple, Union, Ynm, Znm, arg, asin, Mod,
     assoc_laguerre, assoc_legendre, binomial, catalan, ceiling, Complement,
-    chebyshevt, chebyshevu, conjugate, cot, coth, diff, dirichlet_eta,
+    chebyshevt, chebyshevu, conjugate, cot, coth, diff, dirichlet_eta, euler,
     exp, expint, factorial, factorial2, floor, gamma, gegenbauer, hermite,
     hyper, im, jacobi, laguerre, legendre, lerchphi, log, lowergamma,
     meijerg, oo, polar_lift, polylog, re, root, sin, sqrt, symbols,
@@ -16,7 +16,7 @@ from sympy import (
     elliptic_e, elliptic_pi, cos, tan, Wild, true, false, Equivalent, Not,
     Contains, divisor_sigma, SymmetricDifference, SeqPer, SeqFormula,
     SeqAdd, SeqMul, fourier_series, pi, ConditionSet, ComplexRegion, fps,
-    AccumBounds, reduced_totient, primenu, primeomega, SingularityFunction, UnevaluatedExpr)
+    AccumBounds, reduced_totient, primenu, primeomega, SingularityFunction, UnevaluatedExpr, Quaternion)
 
 
 from sympy.ntheory.factor_ import udivisor_sigma
@@ -36,6 +36,7 @@ from sympy.core.trace import Tr
 from sympy.core.compatibility import range
 from sympy.combinatorics.permutations import Cycle, Permutation
 from sympy import MatrixSymbol
+from sympy.vector import CoordSys3D, Cross, Curl, Dot, Divergence, Gradient
 
 x, y, z, t, a, b = symbols('x y z t a b')
 k, m, n = symbols('k m n', integer=True)
@@ -170,6 +171,34 @@ def test_latex_Float():
     assert latex(Float(1.0e-100), mul_symbol="times") == r"1.0 \times 10^{-100}"
     assert latex(1.0*oo) == r"\infty"
     assert latex(-1.0*oo) == r"- \infty"
+
+
+def test_latex_vector_expressions():
+    A = CoordSys3D('A')
+
+    assert latex(Cross(A.i, A.j*A.x*3+A.k)) == r"\mathbf{\hat{i}_{A}} \times \left((3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}} + \mathbf{\hat{k}_{A}}\right)"
+    assert latex(Cross(A.i, A.j)) == r"\mathbf{\hat{i}_{A}} \times \mathbf{\hat{j}_{A}}"
+    assert latex(x*Cross(A.i, A.j)) == r"x \left(\mathbf{\hat{i}_{A}} \times \mathbf{\hat{j}_{A}}\right)"
+    assert latex(Cross(x*A.i, A.j)) == r'- \mathbf{\hat{j}_{A}} \times \left((x)\mathbf{\hat{i}_{A}}\right)'
+
+    assert latex(Curl(3*A.x*A.j)) == r"\nabla\times \left((3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}}\right)"
+    assert latex(Curl(3*A.x*A.j+A.i)) == r"\nabla\times \left(\mathbf{\hat{i}_{A}} + (3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}}\right)"
+    assert latex(Curl(3*x*A.x*A.j)) == r"\nabla\times \left((3 \mathbf{{x}_{A}} x)\mathbf{\hat{j}_{A}}\right)"
+    assert latex(x*Curl(3*A.x*A.j)) == r"x \left(\nabla\times \left((3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}}\right)\right)"
+
+    assert latex(Divergence(3*A.x*A.j+A.i)) == r"\nabla\cdot \left(\mathbf{\hat{i}_{A}} + (3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}}\right)"
+    assert latex(Divergence(3*A.x*A.j)) == r"\nabla\cdot \left((3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}}\right)"
+    assert latex(x*Divergence(3*A.x*A.j)) == r"x \left(\nabla\cdot \left((3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}}\right)\right)"
+
+    assert latex(Dot(A.i, A.j*A.x*3+A.k)) == r"\mathbf{\hat{i}_{A}} \cdot \left((3 \mathbf{{x}_{A}})\mathbf{\hat{j}_{A}} + \mathbf{\hat{k}_{A}}\right)"
+    assert latex(Dot(A.i, A.j)) == r"\mathbf{\hat{i}_{A}} \cdot \mathbf{\hat{j}_{A}}"
+    assert latex(Dot(x*A.i, A.j)) == r"\mathbf{\hat{j}_{A}} \cdot \left((x)\mathbf{\hat{i}_{A}}\right)"
+    assert latex(x*Dot(A.i, A.j)) == r"x \left(\mathbf{\hat{i}_{A}} \cdot \mathbf{\hat{j}_{A}}\right)"
+
+    assert latex(Gradient(A.x)) == r"\nabla\cdot \mathbf{{x}_{A}}"
+    assert latex(Gradient(A.x + 3*A.y)) == r"\nabla\cdot \left(\mathbf{{x}_{A}} + 3 \mathbf{{y}_{A}}\right)"
+    assert latex(x*Gradient(A.x)) == r"x \left(\nabla\cdot \mathbf{{x}_{A}}\right)"
+    assert latex(Gradient(x*A.x)) == r"\nabla\cdot \left(\mathbf{{x}_{A}} x\right)"
 
 
 def test_latex_symbols():
@@ -764,6 +793,8 @@ def test_latex_limits():
 
     # issue #10806
     assert latex(Limit(f(x), x, 0)**2) == r"\left(\lim_{x \to 0^+} f{\left (x \right )}\right)^{2}"
+    # bi-directional limit
+    assert latex(Limit(f(x), x, 0, dir='+-')) == r"\lim_{x \to 0} f{\left (x \right )}"
 
 
 def test_issue_3568():
@@ -862,8 +893,8 @@ def test_latex_Piecewise():
     assert latex(p, itex=True) == "\\begin{cases} x & \\text{for}\\: x \\lt 1 \\\\x^{2} &" \
                                   " \\text{otherwise} \\end{cases}"
     p = Piecewise((x, x < 0), (0, x >= 0))
-    assert latex(p) == "\\begin{cases} x & \\text{for}\\: x < 0 \\\\0 &" \
-                       " \\text{for}\\: x \\geq 0 \\end{cases}"
+    assert latex(p) == '\\begin{cases} x & \\text{for}\\: x < 0 \\\\0 &' \
+                       ' \\text{otherwise} \\end{cases}'
     A, B = symbols("A B", commutative=False)
     p = Piecewise((A**2, Eq(A, B)), (A*B, True))
     s = r"\begin{cases} A^{2} & \text{for}\: A = B \\A B & \text{otherwise} \end{cases}"
@@ -913,6 +944,11 @@ def test_latex_NDimArray():
     x, y, z, w = symbols("x y z w")
 
     for ArrayType in (ImmutableDenseNDimArray, ImmutableSparseNDimArray, MutableDenseNDimArray, MutableSparseNDimArray):
+        # Basic: scalar array
+        M = ArrayType(x)
+
+        assert latex(M) == "x"
+
         M = ArrayType([[1 / x, y], [z, w]])
         M1 = ArrayType([1 / x, y, z])
 
@@ -932,7 +968,6 @@ def test_latex_NDimArray():
                 r"""\left[\begin{matrix}\frac{z}{x} & y z\\z^{2} & w z\end{matrix}\right] & """\
                 r"""\left[\begin{matrix}\frac{w}{x} & w y\\w z & w^{2}\end{matrix}\right]"""\
                 r"""\end{matrix}\right]"""
-        assert latex(ArrayType()) == r"\left[\begin{matrix}\end{matrix}\right]"
 
         Mrow = ArrayType([[x, y, 1/z]])
         Mcolumn = ArrayType([[x], [y], [1/z]])
@@ -1085,6 +1120,13 @@ def test_settings():
 
 def test_latex_numbers():
     assert latex(catalan(n)) == r"C_{n}"
+    assert latex(catalan(n)**2) == r"C_{n}^{2}"
+
+
+def test_latex_euler():
+    assert latex(euler(n)) == r"E_{n}"
+    assert latex(euler(n, x)) == r"E_{n}\left(x\right)"
+    assert latex(euler(n, x)**2) == r"E_{n}^{2}\left(x\right)"
 
 
 def test_lamda():
@@ -1587,6 +1629,18 @@ def test_issue_10489():
     assert latex(s) == latexSymbolWithBrace
     assert latex(cos(s)) == r'\cos{\left (C_{x_{0}} \right )}'
 
+
+def test_issue_12886():
+    m__1, l__1 = symbols('m__1, l__1')
+    assert latex(m__1**2 + l__1**2) == r'\left(l^{1}\right)^{2} + \left(m^{1}\right)^{2}'
+
+
+def test_issue_13559():
+    from sympy.parsing.sympy_parser import parse_expr
+    expr = parse_expr('5/1', evaluate=False)
+    assert latex(expr) == r"\frac{5}{1}"
+
+
 def test_latex_UnevaluatedExpr():
     x = symbols("x")
     he = UnevaluatedExpr(1/x)
@@ -1607,3 +1661,26 @@ def test_MatrixElement_printing():
 
     F = C[0, 0].subs(C, A - B)
     assert latex(F) == r"\left(-1 B + A\right)_{0, 0}"
+
+
+def test_Quaternion_latex_printing():
+    q = Quaternion(x, y, z, t)
+    assert latex(q) == "x + y i + z j + t k"
+    q = Quaternion(x,y,z,x*t)
+    assert latex(q) == "x + y i + z j + t x k"
+    q = Quaternion(x,y,z,x+t)
+    assert latex(q) == r"x + y i + z j + \left(t + x\right) k"
+
+
+def test_TensorProduct_printing():
+    from sympy.tensor.functions import TensorProduct
+    A = MatrixSymbol("A", 3, 3)
+    B = MatrixSymbol("B", 3, 3)
+    assert latex(TensorProduct(A, B)) == r"A \otimes B"
+
+
+def test_WedgeProduct_printing():
+    from sympy.diffgeom.rn import R2
+    from sympy.diffgeom import WedgeProduct
+    wp = WedgeProduct(R2.dx, R2.dy)
+    assert latex(wp) == r"\mathrm{d}x \wedge \mathrm{d}y"
