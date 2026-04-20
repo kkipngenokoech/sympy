@@ -1,4 +1,3 @@
-from sympy.core.compatibility import range
 from sympy.core.basic import Basic
 from sympy.vector.vector import Vector
 from sympy.vector.coordsysrect import CoordSys3D
@@ -26,10 +25,9 @@ class Point(Basic):
                     parent_point))
         # Super class construction
         if parent_point is None:
-            obj = super(Point, cls).__new__(cls, Symbol(name), position)
+            obj = super().__new__(cls, Symbol(name), position)
         else:
-            obj = super(Point, cls).__new__(cls, Symbol(name),
-                                            position, parent_point)
+            obj = super().__new__(cls, Symbol(name), position, parent_point)
         # Decide the object parameters
         obj._name = name
         obj._pos = position

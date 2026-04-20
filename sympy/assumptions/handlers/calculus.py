@@ -2,7 +2,6 @@
 This module contains query handlers responsible for calculus queries:
 infinitesimal, finite, etc.
 """
-from __future__ import print_function, division
 
 from sympy.logic.boolalg import conjuncts
 from sympy.assumptions import Q, ask
@@ -21,7 +20,7 @@ class AskFiniteHandler(CommonHandler):
     >>> from sympy.assumptions.handlers.calculus import AskFiniteHandler
     >>> from sympy.abc import x
     >>> a = AskFiniteHandler()
-    >>> a.Symbol(x, Q.positive(x)) == None
+    >>> a.Symbol(x, Q.positive(x)) is None
     True
     >>> a.Symbol(x, Q.finite(x))
     True
@@ -40,7 +39,7 @@ class AskFiniteHandler(CommonHandler):
         >>> from sympy.assumptions.handlers.calculus import AskFiniteHandler
         >>> from sympy.abc import x
         >>> a = AskFiniteHandler()
-        >>> a.Symbol(x, Q.positive(x)) == None
+        >>> a.Symbol(x, Q.positive(x)) is None
         True
         >>> a.Symbol(x, Q.finite(x))
         True
@@ -225,7 +224,7 @@ class AskFiniteHandler(CommonHandler):
 
     exp = log
 
-    cos, sin, Number, Pi, Exp1, GoldenRatio, ImaginaryUnit, sign = \
-        [staticmethod(CommonHandler.AlwaysTrue)]*8
+    cos, sin, Number, Pi, Exp1, GoldenRatio, TribonacciConstant, ImaginaryUnit, sign = \
+        [staticmethod(CommonHandler.AlwaysTrue)]*9
 
     Infinity, NegativeInfinity = [staticmethod(CommonHandler.AlwaysFalse)]*2

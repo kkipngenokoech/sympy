@@ -4,15 +4,14 @@ Further improvements: eliminate calls to pl_true, implement branching rules,
 efficient unit propagation.
 
 References:
-  - http://en.wikipedia.org/wiki/DPLL_algorithm
+  - https://en.wikipedia.org/wiki/DPLL_algorithm
   - https://www.researchgate.net/publication/242384772_Implementations_of_the_DPLL_Algorithm
 """
-from __future__ import print_function, division
 
-from sympy.core.compatibility import range
 from sympy import default_sort_key
 from sympy.logic.boolalg import Or, Not, conjuncts, disjuncts, to_cnf, \
     to_int_repr, _find_predicates
+from sympy.assumptions.cnf import CNF
 from sympy.logic.inference import pl_true, literal_symbol
 
 
@@ -29,7 +28,10 @@ def dpll_satisfiable(expr):
     False
 
     """
-    clauses = conjuncts(to_cnf(expr))
+    if not isinstance(expr, CNF):
+        clauses = conjuncts(to_cnf(expr))
+    else:
+        clauses = expr.clauses
     if False in clauses:
         return False
     symbols = sorted(_find_predicates(expr), key=default_sort_key)
@@ -280,7 +282,7 @@ def find_unit_clause(clauses, model):
             sym = literal_symbol(literal)
             if sym not in model:
                 num_not_in_model += 1
-                P, value = sym, not (literal.func is Not)
+                P, value = sym, not isinstance(literal, Not)
         if num_not_in_model == 1:
             return P, value
     return None, None
@@ -297,7 +299,7 @@ def find_unit_clause_int_repr(clauses, model):
     (2, False)
 
     """
-    bound = set(model) | set(-sym for sym in model)
+    bound = set(model) | {-sym for sym in model}
     for clause in clauses:
         unbound = clause - bound
         if len(unbound) == 1:

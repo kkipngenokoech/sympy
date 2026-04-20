@@ -6,12 +6,14 @@
     They are supposed to work seamlessly within the SymPy framework.
 """
 
-from __future__ import print_function, division
+from collections import OrderedDict
 
+from sympy.core import S
 from sympy.core.basic import Basic
-from sympy.core.compatibility import as_int, range
+from sympy.core.compatibility import as_int, MutableSet
 from sympy.core.sympify import sympify, converter
 from sympy.utilities.iterables import iterable
+
 
 
 class Tuple(Basic):
@@ -45,7 +47,7 @@ class Tuple(Basic):
 
     def __new__(cls, *args, **kwargs):
         if kwargs.get('sympify', True):
-            args = ( sympify(arg) for arg in args )
+            args = (sympify(arg) for arg in args)
         obj = Basic.__new__(cls, *args)
         return obj
 
@@ -91,12 +93,12 @@ class Tuple(Basic):
 
     def __eq__(self, other):
         if isinstance(other, Basic):
-            return super(Tuple, self).__eq__(other)
+            return super().__eq__(other)
         return self.args == other
 
     def __ne__(self, other):
         if isinstance(other, Basic):
-            return super(Tuple, self).__ne__(other)
+            return super().__ne__(other)
         return self.args != other
 
     def __hash__(self):
@@ -118,8 +120,7 @@ class Tuple(Basic):
         return self.args.count(value)
 
     def index(self, value, start=None, stop=None):
-        """T.index(value, [start, [stop]]) -> integer -- return first index of value.
-           Raises ValueError if the value is not present."""
+        """Searches and returns the first index of the value."""
         # XXX: One would expect:
         #
         # return self.args.index(value, start, stop)
@@ -139,6 +140,24 @@ class Tuple(Basic):
             return self.args.index(value, start)
         else:
             return self.args.index(value, start, stop)
+
+    def _eval_Eq(self, other):
+        from sympy.core.function import AppliedUndef
+        from sympy.core.logic import fuzzy_and, fuzzy_bool
+        from sympy.core.relational import Eq
+
+        if other.is_Symbol or isinstance(other, AppliedUndef):
+            return None
+
+        if not isinstance(other, Tuple) or len(self) != len(other):
+            return S.false
+
+        r = fuzzy_and(fuzzy_bool(Eq(s, o)) for s, o in zip(self, other))
+        if r is True:
+            return S.true
+        elif r is False:
+            return S.false
+
 
 converter[tuple] = lambda tup: Tuple(*tup)
 
@@ -183,6 +202,7 @@ class Dict(Basic):
     cannot be changed afterwards.  Otherwise it behaves identically
     to the Python dict.
 
+    >>> from sympy import Symbol
     >>> from sympy.core.containers import Dict
 
     >>> D = Dict({1: 'one', 2: 'two'})
@@ -196,7 +216,7 @@ class Dict(Basic):
 
     >>> 1 in D
     True
-    >>> D.has('one') # searches keys and values
+    >>> D.has(Symbol('one')) # searches keys and values
     True
     >>> 'one' in D # not in the keys
     False
@@ -227,18 +247,26 @@ class Dict(Basic):
 
     @property
     def args(self):
+        """Returns a tuple of arguments of 'self'.
+
+        See Also
+        ========
+
+        sympy.core.basic.Basic.args
+        """
         return tuple(self.elements)
 
     def items(self):
-        '''D.items() -> list of D's (key, value) pairs, as 2-tuples'''
+        '''Returns a set-like object providing a view on dict's items.
+        '''
         return self._dict.items()
 
     def keys(self):
-        '''D.keys() -> list of D's keys'''
+        '''Returns the list of the dict's keys.'''
         return self._dict.keys()
 
     def values(self):
-        '''D.values() -> list of D's values'''
+        '''Returns the list of the dict's values.'''
         return self._dict.values()
 
     def __iter__(self):
@@ -250,7 +278,7 @@ class Dict(Basic):
         return self._dict.__len__()
 
     def get(self, key, default=None):
-        '''D.get(k[,d]) -> D[k] if k in D, else d.  d defaults to None.'''
+        '''Returns the value for key if the key is in the dictionary.'''
         return self._dict.get(sympify(key), default)
 
     def __contains__(self, key):
@@ -264,3 +292,55 @@ class Dict(Basic):
     def _sorted_args(self):
         from sympy.utilities import default_sort_key
         return tuple(sorted(self.args, key=default_sort_key))
+
+
+# this handles dict, defaultdict, OrderedDict
+converter[dict] = lambda d: Dict(*d.items())
+
+class OrderedSet(MutableSet):
+    def __init__(self, iterable=None):
+        if iterable:
+            self.map = OrderedDict((item, None) for item in iterable)
+        else:
+            self.map = OrderedDict()
+
+    def __len__(self):
+        return len(self.map)
+
+    def __contains__(self, key):
+        return key in self.map
+
+    def add(self, key):
+        self.map[key] = None
+
+    def discard(self, key):
+        self.map.pop(key)
+
+    def pop(self, last=True):
+        return self.map.popitem(last=last)[0]
+
+    def __iter__(self):
+        yield from self.map.keys()
+
+    def __repr__(self):
+        if not self.map:
+            return '%s()' % (self.__class__.__name__,)
+        return '%s(%r)' % (self.__class__.__name__, list(self.map.keys()))
+
+    def intersection(self, other):
+        result = []
+        for val in self:
+            if val in other:
+                result.append(val)
+        return self.__class__(result)
+
+    def difference(self, other):
+        result = []
+        for val in self:
+            if val not in other:
+                result.append(val)
+        return self.__class__(result)
+
+    def update(self, iterable):
+        for val in iterable:
+            self.add(val)
