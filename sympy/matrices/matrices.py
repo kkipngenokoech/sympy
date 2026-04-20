@@ -2241,11 +2241,16 @@ class MatrixBase(MatrixDeprecated,
         return self._new(self.rows, self.cols, self._mat)
 
     def cross(self, b):
-        """Return the cross product of `self` and `b` relaxing the condition
+        r"""
+        Return the cross product of ``self`` and ``b`` relaxing the condition
         of compatible dimensions: if each has 3 elements, a matrix of the
-        same type and shape as `self` will be returned. If `b` has the same
-        shape as `self` then common identities for the cross product (like
-        `a x b = - b x a`) will hold.
+        same type and shape as ``self`` will be returned. If ``b`` has the same
+        shape as ``self`` then common identities for the cross product (like
+        `a \times b = - b \times a`) will hold.
+
+        Parameters
+        ==========
+            b : 3x1 or 1x3 Matrix
 
         See Also
         ========
@@ -3056,11 +3061,11 @@ class MatrixBase(MatrixDeprecated,
         lu[i ,j] = U[i, j] whenever i <= j.
         The output matrix can be visualized as:
 
-        Matrix([
-            [u, u, u, u],
-            [l, u, u, u],
-            [l, l, u, u],
-            [l, l, l, u]])
+            Matrix([
+                [u, u, u, u],
+                [l, u, u, u],
+                [l, l, u, u],
+                [l, l, l, u]])
 
         where l represents a subdiagonal entry of the L factor, and u
         represents an entry from the upper triangular entry of the U
@@ -3068,8 +3073,8 @@ class MatrixBase(MatrixDeprecated,
 
         perm is a list row swap index pairs such that if A is the original
         matrix, then A = (L*U).permuteBkwd(perm), and the row permutation
-        matrix P such that P*A = L*U can be computed by
-        soP=eye(A.row).permuteFwd(perm).
+        matrix P such that ``P*A = L*U`` can be computed by
+        ``P=eye(A.row).permuteFwd(perm)``.
 
         The keyword argument rankcheck determines if this function raises a
         ValueError when passed a matrix whose rank is strictly less than
@@ -3097,7 +3102,7 @@ class MatrixBase(MatrixDeprecated,
         If no such candidate exists, then each candidate pivot is simplified
         if simpfunc is not None.
         The search is repeated, with the difference that a candidate may be
-        the pivot if `iszerofunc()` cannot guarantee that it is nonzero.
+        the pivot if ``iszerofunc()`` cannot guarantee that it is nonzero.
         In the second search the pivot is the first candidate that
         iszerofunc can guarantee is nonzero.
         If no such candidate exists, then the pivot is the first candidate
@@ -3105,9 +3110,9 @@ class MatrixBase(MatrixDeprecated,
         If no such candidate exists, then the search is repeated in the next
         column to the right.
         The pivot search algorithm differs from the one in `rref()`, which
-        relies on `_find_reasonable_pivot()`.
-        Future versions of `LUdecomposition_simple()` may use
-        `_find_reasonable_pivot()`.
+        relies on ``_find_reasonable_pivot()``.
+        Future versions of ``LUdecomposition_simple()`` may use
+        ``_find_reasonable_pivot()``.
 
         See Also
         ========
@@ -3359,7 +3364,7 @@ class MatrixBase(MatrixDeprecated,
         'fro'  Frobenius norm                - does not exist
         inf    --                            max(abs(x))
         -inf   --                            min(abs(x))
-        1      --                            as below
+        1      maximum column sum            as below
         -1     --                            as below
         2      2-norm (largest sing. value)  as below
         -2     smallest singular value       as below
@@ -3377,7 +3382,9 @@ class MatrixBase(MatrixDeprecated,
         >>> v.norm(10)
         (sin(x)**10 + cos(x)**10)**(1/10)
         >>> A = Matrix([[1, 1], [1, 1]])
-        >>> A.norm(2)# Spectral norm (max of |Ax|/|x| under 2-vector-norm)
+        >>> A.norm(1) # maximum sum of absolute values of A is 2
+        2
+        >>> A.norm(2) # Spectral norm (max of |Ax|/|x| under 2-vector-norm)
         2
         >>> A.norm(-2) # Inverse spectral norm (smallest singular value)
         0
@@ -3417,7 +3424,11 @@ class MatrixBase(MatrixDeprecated,
 
         # Matrix Norms
         else:
-            if ord == 2:  # Spectral Norm
+            if ord == 1:  # Maximum column sum
+                m = self.applyfunc(abs)
+                return Max(*[sum(m.col(i)) for i in range(m.cols)])
+
+            elif ord == 2:  # Spectral Norm
                 # Maximum singular value
                 return Max(*self.singular_values())
 
