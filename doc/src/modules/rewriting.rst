@@ -61,7 +61,7 @@ use ``rewrite()`` to do specific type of rewrite::
 Common Subexpression Detection and Collection
 ---------------------------------------------
 
-.. module:: sympy.simplify.cse_main
+.. currentmodule:: sympy.simplify.cse_main
 
 Before evaluating a large expression, it is often useful to identify common
 subexpressions, collect them and evaluate them at once. This is implemented
@@ -104,4 +104,5 @@ will be greatly improved.
 
 More information:
 
-.. autofunction:noindex: cse
+.. autofunction:: cse
+   :noindex:

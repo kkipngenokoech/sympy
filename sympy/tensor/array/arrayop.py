@@ -1,12 +1,10 @@
 import itertools
 
-import collections
-
 from sympy import S, Tuple, diff
 
+from sympy.core.compatibility import Iterable
 from sympy.tensor.array import ImmutableDenseNDimArray
 from sympy.tensor.array.ndim_array import NDimArray
-
 
 def _arrayfy(a):
     from sympy.matrices import MatrixBase
@@ -44,6 +42,8 @@ def tensorproduct(*args):
     >>> p
     [[[[x, y], [z, t]], [[0, 0], [0, 0]], [[0, 0], [0, 0]]], [[[0, 0], [0, 0]], [[x, y], [z, t]], [[0, 0], [0, 0]]], [[[0, 0], [0, 0]], [[0, 0], [0, 0]], [[x, y], [z, t]]]]
     """
+    from sympy.tensor.array import SparseNDimArray, ImmutableSparseNDimArray
+
     if len(args) == 0:
         return S.One
     if len(args) == 1:
@@ -56,6 +56,11 @@ def tensorproduct(*args):
 
     if not isinstance(a, NDimArray) or not isinstance(b, NDimArray):
         return a*b
+
+    if isinstance(a, SparseNDimArray) and isinstance(b, SparseNDimArray):
+        lp = len(b)
+        new_array = {k1*lp + k2: v1*v2 for k1, v1 in a._sparse_array.items() for k2, v2 in b._sparse_array.items()}
+        return ImmutableSparseNDimArray(new_array, a.shape + b.shape)
 
     al = list(a)
     bl = list(b)
@@ -103,7 +108,7 @@ def tensorcontraction(array, *contraction_axes):
     # Verify contraction_axes:
     taken_dims = set([])
     for axes_group in contraction_axes:
-        if not isinstance(axes_group, collections.Iterable):
+        if not isinstance(axes_group, Iterable):
             raise ValueError("collections of contraction axes expected")
 
         dim = array.shape[axes_group[0]]
@@ -190,7 +195,8 @@ def derive_by_array(expr, dx):
 
     """
     from sympy.matrices import MatrixBase
-    array_types = (collections.Iterable, MatrixBase, NDimArray)
+    from sympy.tensor import SparseNDimArray
+    array_types = (Iterable, MatrixBase, NDimArray)
 
     if isinstance(dx, array_types):
         dx = ImmutableDenseNDimArray(dx)
@@ -199,9 +205,19 @@ def derive_by_array(expr, dx):
                 raise ValueError("cannot derive by this array")
 
     if isinstance(expr, array_types):
-        expr = ImmutableDenseNDimArray(expr)
+        if isinstance(expr, NDimArray):
+            expr = expr.as_immutable()
+        else:
+            expr = ImmutableDenseNDimArray(expr)
+
         if isinstance(dx, array_types):
-            new_array = [[y.diff(x) for y in expr] for x in dx]
+            if isinstance(expr, SparseNDimArray):
+                lp = len(expr)
+                new_array = {k + i*lp: v
+                             for i, x in enumerate(dx)
+                             for k, v in expr.diff(x)._sparse_array.items()}
+            else:
+                new_array = [[y.diff(x) for y in expr] for x in dx]
             return type(expr)(new_array, dx.shape + expr.shape)
         else:
             return expr.diff(dx)

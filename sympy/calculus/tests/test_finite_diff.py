@@ -1,14 +1,12 @@
 from itertools import product
-import warnings
 
 from sympy import S, symbols, Function, exp
-from sympy.core.compatibility import range
-from sympy.utilities.exceptions import SymPyDeprecationWarning
-from sympy.utilities.pytest import raises
 from sympy.calculus.finite_diff import (
     apply_finite_diff, differentiate_finite, finite_diff_weights,
     as_finite_diff
 )
+from sympy.core.compatibility import range
+from sympy.utilities.pytest import raises, warns_deprecated_sympy
 
 
 def test_apply_finite_diff():
@@ -19,6 +17,7 @@ def test_apply_finite_diff():
 
     assert (apply_finite_diff(1, [5, 6, 7], [f(5), f(6), f(7)], 5) -
             (-S(3)/2*f(5) + 2*f(6) - S(1)/2*f(7))).simplify() == 0
+    raises(ValueError, lambda: apply_finite_diff(1, [x, h], [f(x)]))
 
 
 def test_finite_diff_weights():
@@ -101,13 +100,15 @@ def test_finite_diff_weights():
 
     # Reasonably the rest of the table is also correct... (testing of that
     # deemed excessive at the moment)
+    raises(ValueError, lambda: finite_diff_weights(-1, [1, 2]))
+    raises(ValueError, lambda: finite_diff_weights(1.2, [1, 2]))
 
 
 def test_as_finite_diff():
     x = symbols('x')
     f = Function('f')
 
-    with raises(SymPyDeprecationWarning):
+    with warns_deprecated_sympy():
         as_finite_diff(f(x).diff(x), [x-2, x-1, x, x+1, x+2])
 
 
@@ -128,3 +129,5 @@ def test_differentiate_finite():
     res2 = differentiate_finite(f(x) + x**3 + 42, x, points=[x-1, x+1])
     ref2 = (f(x + 1) + (x + 1)**3 - f(x - 1) - (x - 1)**3)/2
     assert (res2 - ref2).simplify() == 0
+    raises(ValueError, lambda: differentiate_finite(f(x)*g(x), x,
+                                                    pints=[x-1, x+1]))

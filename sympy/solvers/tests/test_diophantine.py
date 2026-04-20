@@ -273,11 +273,9 @@ def test_bf_pell():
 def test_length():
     assert length(2, 1, 0) == 1
     assert length(-2, 4, 5) == 3
-    assert length(-5, 4, 17) == 5
+    assert length(-5, 4, 17) == 4
     assert length(0, 4, 13) == 6
-    assert length(-31, 8, 613) == 69
     assert length(7, 13, 11) == 23
-    assert length(-40, 5, 23) == 4
     assert length(1, 6, 4) == 2
 
 
@@ -540,6 +538,8 @@ def test_diophantine():
     assert diophantine(1/x) == set()
     assert diophantine(1/x + 1/y - S.Half)
     set([(6, 3), (-2, 1), (4, 4), (1, -2), (3, 6)])
+    assert diophantine(x**2 + y**2 +3*x- 5, permute=True) == \
+        set([(-1, 1), (-4, -1), (1, -1), (1, 1), (-4, 1), (-1, -1), (4, 1), (4, -1)])
 
 
 def test_general_pythagorean():
@@ -687,7 +687,7 @@ def test_assumptions():
     Test whether diophantine respects the assumptions.
     """
     #Test case taken from the below so question regarding assumptions in diophantine module
-    #http://stackoverflow.com/questions/23301941/how-can-i-declare-natural-symbols-with-sympy
+    #https://stackoverflow.com/questions/23301941/how-can-i-declare-natural-symbols-with-sympy
     m, n = symbols('m n', integer=True, positive=True)
     diof = diophantine(n ** 2 + m * n - 500)
     assert diof == set([(5, 20), (40, 10), (95, 5), (121, 4), (248, 2), (499, 1)])

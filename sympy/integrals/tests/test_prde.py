@@ -74,7 +74,7 @@ def test_prde_linear_constraints():
         ((Poly(t, t), Poly(t**2, t), Poly(t**3, t)), Matrix(0, 3, []))
     G = [(Poly(2*x, t), Poly(t, t)), (Poly(-x, t), Poly(t, t))]
     DE = DifferentialExtension(extension={'D': [Poly(1, x), Poly(1/x, t)]})
-    prde_linear_constraints(Poly(1, t), Poly(0, t), G, DE) == \
+    assert prde_linear_constraints(Poly(1, t), Poly(0, t), G, DE) == \
         ((Poly(0, t), Poly(0, t)), Matrix([[2*x, -x]]))
 
 
@@ -141,9 +141,9 @@ def test_prde_no_cancel():
     h, A = prde_no_cancel_b_small(b, q, 3, DE)
     V = A.nullspace()
     assert len(V) == 1
-    assert V[0] == Matrix([-1/2, 0, 0, 1, 0, 0]*3)
+    assert V[0] == Matrix([-S(1)/2, 0, 0, 1, 0, 0]*3)
     assert (Matrix([h])*V[0][6:, :])[0] == Poly(x**2/2, t, domain='ZZ(x)')
-    assert (Matrix([q])*V[0][:6, :])[0] == Poly(x - 1/2, t, domain='QQ(x)')
+    assert (Matrix([q])*V[0][:6, :])[0] == Poly(x - S(1)/2, t, domain='QQ(x)')
 
 
 def test_prde_cancel_liouvillian():

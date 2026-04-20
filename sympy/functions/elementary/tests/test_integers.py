@@ -1,6 +1,7 @@
-from sympy import AccumBounds, Symbol, floor, nan, oo, E, symbols, ceiling, pi, \
-        Rational, Float, I, sin, exp, log, factorial, frac
+from sympy import AccumBounds, Symbol, floor, nan, oo, zoo, E, symbols, \
+        ceiling, pi, Rational, Float, I, sin, exp, log, factorial, frac, Eq
 
+from sympy.core.expr import unchanged
 from sympy.utilities.pytest import XFAIL
 
 x = Symbol('x')
@@ -8,12 +9,14 @@ i = Symbol('i', imaginary=True)
 y = Symbol('y', real=True)
 k, n = symbols('k,n', integer=True)
 
+
 def test_floor():
 
     assert floor(nan) == nan
 
     assert floor(oo) == oo
     assert floor(-oo) == -oo
+    assert floor(zoo) == zoo
 
     assert floor(0) == 0
 
@@ -48,6 +51,7 @@ def test_floor():
 
     assert floor(oo*I) == oo*I
     assert floor(-oo*I) == -oo*I
+    assert floor(exp(I*pi/4)*oo) == exp(I*pi/4)*oo
 
     assert floor(2*I) == 2*I
     assert floor(-2*I) == -2*I
@@ -58,27 +62,27 @@ def test_floor():
     assert floor(E + 17) == 19
     assert floor(pi + 2) == 5
 
-    assert floor(E + pi) == floor(E + pi)
-    assert floor(I + pi) == floor(I + pi)
+    assert floor(E + pi) == 5
+    assert floor(I + pi) == 3 + I
 
     assert floor(floor(pi)) == 3
     assert floor(floor(y)) == floor(y)
-    assert floor(floor(x)) == floor(floor(x))
+    assert floor(floor(x)) == floor(x)
 
-    assert floor(x) == floor(x)
-    assert floor(2*x) == floor(2*x)
-    assert floor(k*x) == floor(k*x)
+    assert unchanged(floor, x)
+    assert unchanged(floor, 2*x)
+    assert unchanged(floor, k*x)
 
     assert floor(k) == k
     assert floor(2*k) == 2*k
     assert floor(k*n) == k*n
 
-    assert floor(k/2) == floor(k/2)
+    assert unchanged(floor, k/2)
 
-    assert floor(x + y) == floor(x + y)
+    assert unchanged(floor, x + y)
 
-    assert floor(x + 3) == floor(x + 3)
-    assert floor(x + k) == floor(x + k)
+    assert floor(x + 3) == floor(x) + 3
+    assert floor(x + k) == floor(x) + k
 
     assert floor(y + 3) == floor(y) + 3
     assert floor(y + k) == floor(y) + k
@@ -87,7 +91,7 @@ def test_floor():
 
     assert floor(k + n) == k + n
 
-    assert floor(x*I) == floor(x*I)
+    assert unchanged(floor, x*I)
     assert floor(k*I) == k*I
 
     assert floor(Rational(23, 10) - E*I) == 2 - 3*I
@@ -110,6 +114,16 @@ def test_floor():
     assert (floor(x) <= y).is_Relational  # arg is not same as rhs
     assert (floor(x) > y).is_Relational
 
+    assert floor(y).rewrite(frac) == y - frac(y)
+    assert floor(y).rewrite(ceiling) == -ceiling(-y)
+    assert floor(y).rewrite(frac).subs(y, -pi) == floor(-pi)
+    assert floor(y).rewrite(frac).subs(y, E) == floor(E)
+    assert floor(y).rewrite(ceiling).subs(y, E) == -ceiling(-E)
+    assert floor(y).rewrite(ceiling).subs(y, -pi) == -ceiling(pi)
+
+    assert Eq(floor(y), y - frac(y))
+    assert Eq(floor(y), -ceiling(-y))
+
 
 def test_ceiling():
 
@@ -117,6 +131,7 @@ def test_ceiling():
 
     assert ceiling(oo) == oo
     assert ceiling(-oo) == -oo
+    assert ceiling(zoo) == zoo
 
     assert ceiling(0) == 0
 
@@ -151,6 +166,7 @@ def test_ceiling():
 
     assert ceiling(oo*I) == oo*I
     assert ceiling(-oo*I) == -oo*I
+    assert ceiling(exp(I*pi/4)*oo) == exp(I*pi/4)*oo
 
     assert ceiling(2*I) == 2*I
     assert ceiling(-2*I) == -2*I
@@ -161,27 +177,27 @@ def test_ceiling():
     assert ceiling(E + 17) == 20
     assert ceiling(pi + 2) == 6
 
-    assert ceiling(E + pi) == ceiling(E + pi)
-    assert ceiling(I + pi) == ceiling(I + pi)
+    assert ceiling(E + pi) == 6
+    assert ceiling(I + pi) == I + 4
 
     assert ceiling(ceiling(pi)) == 4
     assert ceiling(ceiling(y)) == ceiling(y)
-    assert ceiling(ceiling(x)) == ceiling(ceiling(x))
+    assert ceiling(ceiling(x)) == ceiling(x)
 
-    assert ceiling(x) == ceiling(x)
-    assert ceiling(2*x) == ceiling(2*x)
-    assert ceiling(k*x) == ceiling(k*x)
+    assert unchanged(ceiling, x)
+    assert unchanged(ceiling, 2*x)
+    assert unchanged(ceiling, k*x)
 
     assert ceiling(k) == k
     assert ceiling(2*k) == 2*k
     assert ceiling(k*n) == k*n
 
-    assert ceiling(k/2) == ceiling(k/2)
+    assert unchanged(ceiling, k/2)
 
-    assert ceiling(x + y) == ceiling(x + y)
+    assert unchanged(ceiling, x + y)
 
-    assert ceiling(x + 3) == ceiling(x + 3)
-    assert ceiling(x + k) == ceiling(x + k)
+    assert ceiling(x + 3) == ceiling(x) + 3
+    assert ceiling(x + k) == ceiling(x) + k
 
     assert ceiling(y + 3) == ceiling(y) + 3
     assert ceiling(y + k) == ceiling(y) + k
@@ -190,7 +206,7 @@ def test_ceiling():
 
     assert ceiling(k + n) == k + n
 
-    assert ceiling(x*I) == ceiling(x*I)
+    assert unchanged(ceiling, x*I)
     assert ceiling(k*I) == k*I
 
     assert ceiling(Rational(23, 10) - E*I) == 3 - 2*I
@@ -213,6 +229,16 @@ def test_ceiling():
     assert (ceiling(x) >= y).is_Relational  # arg is not same as rhs
     assert (ceiling(x) < y).is_Relational
 
+    assert ceiling(y).rewrite(floor) == -floor(-y)
+    assert ceiling(y).rewrite(frac) == y + frac(-y)
+    assert ceiling(y).rewrite(floor).subs(y, -pi) == -floor(pi)
+    assert ceiling(y).rewrite(floor).subs(y, E) == -floor(-E)
+    assert ceiling(y).rewrite(frac).subs(y, pi) == ceiling(pi)
+    assert ceiling(y).rewrite(frac).subs(y, -E) == ceiling(-E)
+
+    assert Eq(ceiling(y), y + frac(-y))
+    assert Eq(ceiling(y), -floor(-y))
+
 
 def test_frac():
     assert isinstance(frac(x), frac)
@@ -230,10 +256,18 @@ def test_frac():
     assert frac(0.5 + I*r) == 0.5 + I*frac(r)
     assert frac(n + I*r) == I*frac(r)
     assert frac(n + I*k) == 0
-    assert frac(x + I*x) == frac(x + I*x)
+    assert unchanged(frac, x + I*x)
     assert frac(x + I*n) == frac(x)
 
     assert frac(x).rewrite(floor) == x - floor(x)
+    assert frac(x).rewrite(ceiling) == x + ceiling(-x)
+    assert frac(y).rewrite(floor).subs(y, pi) == frac(pi)
+    assert frac(y).rewrite(floor).subs(y, -E) == frac(-E)
+    assert frac(y).rewrite(ceiling).subs(y, -pi) == frac(-pi)
+    assert frac(y).rewrite(ceiling).subs(y, E) == frac(E)
+
+    assert Eq(frac(y), y - floor(y))
+    assert Eq(frac(y), y + ceiling(-y))
 
 
 def test_series():
@@ -254,8 +288,16 @@ def test_issue_4149():
     assert floor(3*I + pi*I + y*I) == floor(3 + pi + y)*I
     assert floor(3 + E + pi*I + y*I) == 5 + floor(pi + y)*I
 
+
 def test_issue_11207():
     assert floor(floor(x)) == floor(x)
     assert floor(ceiling(x)) == ceiling(x)
     assert ceiling(floor(x)) == floor(x)
     assert ceiling(ceiling(x)) == ceiling(x)
+
+
+def test_nested_floor_ceiling():
+    assert floor(-floor(ceiling(x**3)/y)) == -floor(ceiling(x**3)/y)
+    assert ceiling(-floor(ceiling(x**3)/y)) == -floor(ceiling(x**3)/y)
+    assert floor(ceiling(-floor(x**Rational(7, 2)/y))) == -floor(x**Rational(7, 2)/y)
+    assert -ceiling(-ceiling(floor(x)/y)) == ceiling(floor(x)/y)

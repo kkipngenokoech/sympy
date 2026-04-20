@@ -1,13 +1,13 @@
 from sympy import (
     Abs, And, binomial, Catalan, cos, Derivative, E, Eq, exp, EulerGamma,
     factorial, Function, harmonic, I, Integral, KroneckerDelta, log,
-    nan, Ne, Or, oo, pi, Piecewise, Product, product, Rational, S, simplify,
+    nan, oo, pi, Piecewise, Product, product, Rational, S, simplify,
     sin, sqrt, Sum, summation, Symbol, symbols, sympify, zeta, gamma, Le,
-    Indexed, Idx, IndexedBase, prod)
-from sympy.abc import a, b, c, d, f, k, m, x, y, z
+    Indexed, Idx, IndexedBase, prod, Dummy, lowergamma, Range)
+from sympy.abc import a, b, c, d, k, m, x, y, z
 from sympy.concrete.summations import telescopic
-from sympy.utilities.pytest import XFAIL, raises
-from sympy import simplify
+from sympy.concrete.expr_with_intlimits import ReorderError
+from sympy.utilities.pytest import XFAIL, raises, slow
 from sympy.matrices import Matrix
 from sympy.core.mod import Mod
 from sympy.core.compatibility import range
@@ -187,6 +187,9 @@ def test_arithmetic_sums():
     assert Sum(x, (n, a, a)).doit() == x
     assert Sum(x, (x, a, a)).doit() == a
     assert Sum(x, (n, 1, a)).doit() == a*x
+    assert Sum(x, (x, Range(1, 11))).doit() == 55
+    assert Sum(x, (x, Range(1, 11, 2))).doit() == 25
+    assert Sum(x, (x, Range(1, 10, 2))) == Sum(x, (x, Range(9, 0, -2)))
     lo, hi = 1, 2
     s1 = Sum(n, (n, lo, hi))
     s2 = Sum(n, (n, hi, lo))
@@ -207,6 +210,7 @@ def test_arithmetic_sums():
     assert summation(cos(n), (n, x, x + 2)) == cos(x) + cos(x + 1) + cos(x + 2)
     assert isinstance(summation(cos(n), (n, x, x + S.Half)), Sum)
     assert summation(k, (k, 0, oo)) == oo
+    assert summation(k, (k, Range(1, 11))) == 55
 
 
 def test_polynomial_sums():
@@ -261,7 +265,7 @@ def test_geometric_sums():
     assert result.is_Float
 
     result = Sum(0.25**n, (n, 1, oo)).doit()
-    assert result == S(1)/3
+    assert result == 1/3.
     assert result.is_Float
 
     result = Sum(0.99999**n, (n, 1, oo)).doit()
@@ -278,6 +282,16 @@ def test_geometric_sums():
 
     assert Sum(1.0**n, (n, 1, oo)).doit() == oo
     assert Sum(2.43**n, (n, 1, oo)).doit() == oo
+
+    # Issue 13979:
+    i, k, q = symbols('i k q', integer=True)
+    result = summation(
+        exp(-2*I*pi*k*i/n) * exp(2*I*pi*q*i/n) / n, (i, 0, n - 1)
+    )
+    assert result.simplify() == Piecewise(
+            (1, Eq(exp(2*I*pi*(-k + q)/n), 1)), (0, True)
+    )
+
 
 def test_harmonic_sums():
     assert summation(1/k, (k, 0, n)) == Sum(1/k, (k, 0, n))
@@ -390,7 +404,10 @@ def test_euler_maclaurin():
         s, e = A.euler_maclaurin(m, n)
         assert abs((s - zeta(3)).evalf()) < e.evalf()
 
+    raises(ValueError, lambda: Sum(1, (x, 0, 1), (k, 0, 1)).euler_maclaurin())
 
+
+@slow
 def test_evalf_euler_maclaurin():
     assert NS(Sum(1/k**k, (k, 1, oo)), 15) == '1.29128599706266'
     assert NS(Sum(1/k**k, (k, 1, oo)),
@@ -470,8 +487,7 @@ def test_wallis_product():
     # can factor simple rational expressions
     A = Product(4*n**2 / (4*n**2 - 1), (n, 1, b))
     B = Product((2*n)*(2*n)/(2*n - 1)/(2*n + 1), (n, 1, b))
-    half = Rational(1, 2)
-    R = pi/2 * factorial(b)**2 / factorial(b - half) / factorial(b + half)
+    R = pi*gamma(b + 1)**2/(2*gamma(b + S(1)/2)*gamma(b + S(3)/2))
     assert simplify(A.doit()) == R
     assert simplify(B.doit()) == R
     # This one should eventually also be doable (Euler's product formula for sin)
@@ -517,7 +533,6 @@ def test_function_subs():
     raises(ValueError, lambda: S.subs(f(y),x+y) )
     S = Sum(x*log(y),(x,0,oo),(y,0,oo))
     assert S.subs(log(y),y) == S
-    f = Symbol('f')
     S = Sum(x*f(y),(x,0,oo),(y,0,oo))
     assert S.subs(f(y),y) == Sum(x*y,(x,0,oo),(y,0,oo))
 
@@ -534,17 +549,19 @@ def test_equality():
             assert F(1, x) != F(1, y)
         except ValueError:
             pass
-        assert F(a, (x, 1, 2)) != F(a, (x, 1, 3))
-        assert F(a, (x, 1, 2)) != F(b, (x, 1, 2))
-        assert F(x, (x, 1, 2)) != F(r, (r, 1, 2))
-        assert F(1, (x, 1, x)) != F(1, (y, 1, x))
-        assert F(1, (x, 1, x)) != F(1, (y, 1, y))
+        assert F(a, (x, 1, 2)) != F(a, (x, 1, 3))  # diff limit
+        assert F(a, (x, 1, x)) != F(a, (y, 1, y))
+        assert F(a, (x, 1, 2)) != F(b, (x, 1, 2))  # diff expression
+        assert F(x, (x, 1, 2)) != F(r, (r, 1, 2))  # diff assumptions
+        assert F(1, (x, 1, x)) != F(1, (y, 1, x))  # only dummy is diff
+        assert F(1, (x, 1, x)).dummy_eq(F(1, (y, 1, x)))
 
     # issue 5265
     assert Sum(x, (x, 1, x)).subs(x, a) == Sum(x, (x, 1, a))
 
 
 def test_Sum_doit():
+    f = Function('f')
     assert Sum(n*Integral(a**2), (n, 0, 2)).doit() == a**3
     assert Sum(n*Integral(a**2), (n, 0, 2)).doit(deep=False) == \
         3*Integral(a**2)
@@ -605,7 +622,7 @@ def test_Sum_interface():
     raises(ValueError, lambda: summation(1))
 
 
-def test_eval_diff():
+def test_diff():
     assert Sum(x, (x, 1, 2)).diff(x) == 0
     assert Sum(x*y, (x, 1, 2)).diff(x) == 0
     assert Sum(x*y, (y, 1, 2)).diff(x) == Sum(y, (y, 1, 2))
@@ -613,6 +630,7 @@ def test_eval_diff():
     assert e.diff(a) == Derivative(e, a)
     assert Sum(x*y, (x, 1, 3), (a, 2, 5)).diff(y).doit() == \
         Sum(x*y, (x, 1, 3), (a, 2, 5)).doit().diff(y) == 24
+    assert Sum(x, (x, 1, 2)).diff(y) == 0
 
 
 def test_hypersum():
@@ -866,6 +884,7 @@ def test_factor_expand_subs():
 
 
 def test_distribution_over_equality():
+    f = Function('f')
     assert Product(Eq(x*2, f(x)), (x, 1, 3)).doit() == Eq(48, f(1)*f(2)*f(3))
     assert Sum(Eq(f(x), x**2), (x, 0, y)) == \
         Eq(Sum(f(x), (x, 0, y)), Sum(x**2, (x, 0, y)))
@@ -927,7 +946,6 @@ def test_is_convergent():
 
     # root test --
     assert Sum((-12)**n/n, (n, 1, oo)).is_convergent() is S.false
-    assert Sum(2**n/factorial(n), (n, 1, oo)).is_convergent() is S.true
 
     # integral test --
 
@@ -935,6 +953,7 @@ def test_is_convergent():
     assert Sum(1/(n**2 + 1), (n, 1, oo)).is_convergent() is S.true
     assert Sum(1/n**(S(6)/5), (n, 1, oo)).is_convergent() is S.true
     assert Sum(2/(n*sqrt(n - 1)), (n, 2, oo)).is_convergent() is S.true
+    assert Sum(1/(sqrt(n)*sqrt(n)), (n, 2, oo)).is_convergent() is S.false
 
     # comparison test --
     assert Sum(1/(n + log(n)), (n, 1, oo)).is_convergent() is S.false
@@ -946,6 +965,9 @@ def test_is_convergent():
     assert Sum(1/(n*log(n)*log(log(n))), (n, 5, oo)).is_convergent() is S.false
     assert Sum((n - 1)/(n*log(n)**3), (n, 3, oo)).is_convergent() is S.false
     assert Sum(2/(n**2*log(n)), (n, 2, oo)).is_convergent() is S.true
+    assert Sum(1/(n*sqrt(log(n))*log(log(n))), (n, 100, oo)).is_convergent() is S.false
+    assert Sum(log(log(n))/(n*log(n)**2), (n, 100, oo)).is_convergent() is S.true
+    assert Sum(log(n)/n**2, (n, 5, oo)).is_convergent() is S.true
 
     # alternating series tests --
     assert Sum((-1)**(n - 1)/(n**2 - 1), (n, 3, oo)).is_convergent() is S.true
@@ -961,7 +983,7 @@ def test_is_convergent():
     f = Piecewise((n**(-2), n <= 1), (n**2, n > 1))
     assert Sum(f, (n, 1, oo)).is_convergent() is S.false
     assert Sum(f, (n, -oo, oo)).is_convergent() is S.false
-    assert Sum(f, (n, -oo, 1)).is_convergent() is S.true
+    #assert Sum(f, (n, -oo, 1)).is_convergent() is S.true
 
     # integral test
 
@@ -971,6 +993,9 @@ def test_is_convergent():
     # (1.2, 0.43), (3.0, -0.25) and (6.8, 0.050)
     eq = (x - 2)*(x**2 - 6*x + 4)*exp(-x)
     assert Sum(eq, (x, 1, oo)).is_convergent() is S.true
+    assert Sum(eq, (x, 1, 2)).is_convergent() is S.true
+    assert Sum(1/(x**3), (x, 1, oo)).is_convergent() is S.true
+    assert Sum(1/(x**(S(1)/2)), (x, 1, oo)).is_convergent() is S.false
 
 
 def test_is_absolutely_convergent():
@@ -980,8 +1005,6 @@ def test_is_absolutely_convergent():
 
 @XFAIL
 def test_convergent_failing():
-    assert Sum(sin(n)/n**3, (n, 1, oo)).is_convergent() is S.true
-
     # dirichlet tests
     assert Sum(sin(n)/n, (n, 1, oo)).is_convergent() is S.true
     assert Sum(sin(2*n)/n, (n, 1, oo)).is_convergent() is S.true
@@ -1001,3 +1024,91 @@ def test_issue_10156():
     e = 2*y*Sum(2*cx*x**2, (x, 1, 9))
     assert e.factor() == \
         8*y**3*Sum(x, (x, 1, 3))*Sum(x**2, (x, 1, 9))
+
+
+def test_issue_14129():
+    assert Sum( k*x**k, (k, 0, n-1)).doit() == \
+        Piecewise((n**2/2 - n/2, Eq(x, 1)), ((n*x*x**n -
+            n*x**n - x*x**n + x)/(x - 1)**2, True))
+    assert Sum( x**k, (k, 0, n-1)).doit() == \
+        Piecewise((n, Eq(x, 1)), ((-x**n + 1)/(-x + 1), True))
+    assert Sum( k*(x/y+x)**k, (k, 0, n-1)).doit() == \
+        Piecewise((n*(n - 1)/2, Eq(x, y/(y + 1))),
+        (x*(y + 1)*(n*x*y*(x + x/y)**n/(x + x/y)
+        + n*x*(x + x/y)**n/(x + x/y) - n*y*(x
+        + x/y)**n/(x + x/y) - x*y*(x + x/y)**n/(x
+        + x/y) - x*(x + x/y)**n/(x + x/y) + y)/(x*y
+        + x - y)**2, True))
+
+
+def test_issue_14112():
+    assert Sum((-1)**n/sqrt(n), (n, 1, oo)).is_absolutely_convergent() is S.false
+    assert Sum((-1)**(2*n)/n, (n, 1, oo)).is_convergent() is S.false
+    assert Sum((-2)**n + (-3)**n, (n, 1, oo)).is_convergent() is S.false
+
+
+def test_sin_times_absolutely_convergent():
+    assert Sum(sin(n) / n**3, (n, 1, oo)).is_convergent() is S.true
+    assert Sum(sin(n) * log(n) / n**3, (n, 1, oo)).is_convergent() is S.true
+
+
+def test_issue_14111():
+    assert Sum(1/log(log(n)), (n, 22, oo)).is_convergent() is S.false
+
+
+def test_issue_14484():
+    raises(NotImplementedError, lambda: Sum(sin(n)/log(log(n)), (n, 22, oo)).is_convergent())
+
+
+def test_issue_14640():
+    i, n = symbols("i n", integer=True)
+    a, b, c = symbols("a b c")
+
+    assert Sum(a**-i/(a - b), (i, 0, n)).doit() == Sum(
+        1/(a*a**i - a**i*b), (i, 0, n)).doit() == Piecewise(
+            (n + 1, Eq(1/a, 1)),
+            ((-a**(-n - 1) + 1)/(1 - 1/a), True))/(a - b)
+
+    assert Sum((b*a**i - c*a**i)**-2, (i, 0, n)).doit() == Piecewise(
+        (n + 1, Eq(a**(-2), 1)),
+        ((-a**(-2*n - 2) + 1)/(1 - 1/a**2), True))/(b - c)**2
+
+    s = Sum(i*(a**(n - i) - b**(n - i))/(a - b), (i, 0, n)).doit()
+    assert not s.has(Sum)
+    assert s.subs({a: 2, b: 3, n: 5}) == 122
+
+
+def test_issue_15943():
+    assert Sum(binomial(n, k)*factorial(n - k), (k, 0, n)).doit() == -E*(
+        n + 1)*gamma(n + 1)*lowergamma(n + 1, 1)/gamma(n + 2
+        ) + E*gamma(n + 1)
+
+
+def test_Sum_dummy_eq():
+    assert not Sum(x, (x, a, b)).dummy_eq(1)
+    assert not Sum(x, (x, a, b)).dummy_eq(Sum(x, (x, a, b), (a, 1, 2)))
+    assert not Sum(x, (x, a, b)).dummy_eq(Sum(x, (x, a, c)))
+    assert Sum(x, (x, a, b)).dummy_eq(Sum(x, (x, a, b)))
+    d = Dummy()
+    assert Sum(x, (x, a, d)).dummy_eq(Sum(x, (x, a, c)), c)
+    assert not Sum(x, (x, a, d)).dummy_eq(Sum(x, (x, a, c)))
+    assert Sum(x, (x, a, c)).dummy_eq(Sum(y, (y, a, c)))
+    assert Sum(x, (x, a, d)).dummy_eq(Sum(y, (y, a, c)), c)
+    assert not Sum(x, (x, a, d)).dummy_eq(Sum(y, (y, a, c)))
+
+
+def test_issue_15852():
+    assert summation(x**y*y, (y, -oo, oo)).doit() == Sum(x**y*y, (y, -oo, oo))
+
+
+def test_exceptions():
+    S = Sum(x, (x, a, b))
+    raises(ValueError, lambda: S.change_index(x, x**2, y))
+    S = Sum(x, (x, a, b), (x, 1, 4))
+    raises(ValueError, lambda: S.index(x))
+    S = Sum(x, (x, a, b), (y, 1, 4))
+    raises(ValueError, lambda: S.reorder([x]))
+    S = Sum(x, (x, y, b), (y, 1, 4))
+    raises(ReorderError, lambda: S.reorder_limit(0, 1))
+    S = Sum(x*y, (x, a, b), (y, 1, 4))
+    raises(NotImplementedError, lambda: S.is_convergent())
