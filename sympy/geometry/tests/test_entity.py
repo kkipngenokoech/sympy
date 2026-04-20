@@ -1,9 +1,40 @@
-from __future__ import division
+from sympy import Symbol, Rational, S
+from sympy.geometry import Circle, Ellipse, Line, Point, Polygon, Ray, RegularPolygon, Segment, Triangle
+from sympy.geometry.entity import scale, GeometryEntity
+from sympy.testing.pytest import raises
 
-from sympy import Symbol, pi, sqrt
-from sympy.geometry import Circle, Ellipse, Line, Point, Polygon, Ray, RegularPolygon, Segment, Triangle, Parabola
-from sympy.geometry.entity import scale
-from sympy.utilities.pytest import raises
+from random import random
+
+
+def test_entity():
+    x = Symbol('x', real=True)
+    y = Symbol('y', real=True)
+
+    assert GeometryEntity(x, y) in GeometryEntity(x, y)
+    raises(NotImplementedError, lambda: Point(0, 0) in GeometryEntity(x, y))
+
+    assert GeometryEntity(x, y) == GeometryEntity(x, y)
+    assert GeometryEntity(x, y).equals(GeometryEntity(x, y))
+
+    c = Circle((0, 0), 5)
+    assert GeometryEntity.encloses(c, Point(0, 0))
+    assert GeometryEntity.encloses(c, Segment((0, 0), (1, 1)))
+    assert GeometryEntity.encloses(c, Line((0, 0), (1, 1))) is False
+    assert GeometryEntity.encloses(c, Circle((0, 0), 4))
+    assert GeometryEntity.encloses(c, Polygon(Point(0, 0), Point(1, 0), Point(0, 1)))
+    assert GeometryEntity.encloses(c, RegularPolygon(Point(8, 8), 1, 3)) is False
+
+
+def test_svg():
+    a = Symbol('a')
+    b = Symbol('b')
+    d = Symbol('d')
+
+    entity = Circle(Point(a, b), d)
+    assert entity._repr_svg_() is None
+
+    entity = Circle(Point(0, 0), S.Infinity)
+    assert entity._repr_svg_() is None
 
 
 def test_subs():
@@ -51,11 +82,16 @@ def test_reflect_entity_overrides():
     assert c.area == -cr.area
 
     pent = RegularPolygon((1, 2), 1, 5)
-    l = Line((0, pi), slope=sqrt(2))
+    l = Line(pent.vertices[1],
+        slope=Rational(random() - .5, random() - .5))
     rpent = pent.reflect(l)
     assert rpent.center == pent.center.reflect(l)
-    assert str([w.n(3) for w in rpent.vertices]) == (
-        '[Point2D(-0.586, 4.27), Point2D(-1.69, 4.66), '
-        'Point2D(-2.41, 3.73), Point2D(-1.74, 2.76), '
-        'Point2D(-0.616, 3.10)]')
+    rvert = [i.reflect(l) for i in pent.vertices]
+    for v in rpent.vertices:
+        for i in range(len(rvert)):
+            ri = rvert[i]
+            if ri.equals(v):
+                rvert.remove(ri)
+                break
+    assert not rvert
     assert pent.area.equals(-rpent.area)
