@@ -28,7 +28,7 @@ def test_disc_on_an_incline_plane():
     # is created. Finally, we create the disc.
     Do = Point('Do')
     Do.set_vel(N, yd * A.x)
-    I = m * R**2 / 2 * B.z | B.z
+    I = m * R**2/2 * B.z | B.z
     D = RigidBody('D', Do, B, m, (I, Do))
 
     # To construct the Lagrangian, 'L', of the disc, we determine its kinetic
@@ -43,7 +43,7 @@ def test_disc_on_an_incline_plane():
     # supply it the necessary arguments and generate the equations of motion.
     # The'rhs' method solves for the q_double_dots (i.e. the second derivative
     # with respect to time  of the generalized coordinates and the lagrange
-    # multiplers.
+    # multipliers.
     q = [y, theta]
     hol_coneqs = [y - R * theta]
     m = LagrangesMethod(L, q, hol_coneqs=hol_coneqs)
@@ -121,7 +121,7 @@ def test_nonminimal_pendulum():
     assert LM.eom == eom_sol
     # Check multiplier solution
     lam_sol = Matrix([(19.6*q1 + 2*q1d**2 + 2*q2d**2)/(4*q1**2/m + 4*q2**2/m)])
-    assert LM.solve_multipliers(sol_type='Matrix') == lam_sol
+    assert simplify(LM.solve_multipliers(sol_type='Matrix')) == simplify(lam_sol)
 
 
 def test_dub_pen():
@@ -203,7 +203,7 @@ def test_rolling_disc():
     Dmc.v2pt_theory(C, N, R)
 
     # Forming the inertia dyadic.
-    I = inertia(L, m / 4 * r**2, m / 2 * r**2, m / 4 * r**2)
+    I = inertia(L, m/4 * r**2, m/2 * r**2, m/4 * r**2)
     BodyD = RigidBody('BodyD', Dmc, R, m, (I, Dmc))
 
     # Finally we form the equations of motion, using the same steps we did

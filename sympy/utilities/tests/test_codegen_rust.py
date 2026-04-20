@@ -1,14 +1,10 @@
-from sympy.core import (S, symbols, Eq, pi, Catalan, EulerGamma, Lambda,
-                        Dummy, Function)
-from sympy.core.compatibility import StringIO
-from sympy import erf, Integral, Piecewise
+from io import StringIO
+
+from sympy.core import S, symbols, pi, Catalan, EulerGamma, Function
+from sympy import Piecewise
 from sympy import Equality
-from sympy.matrices import Matrix, MatrixSymbol
-from sympy.printing.codeprinter import Assignment
 from sympy.utilities.codegen import RustCodeGen, codegen, make_routine
-from sympy.utilities.pytest import raises
-from sympy.utilities.lambdify import implemented_function
-from sympy.utilities.pytest import XFAIL
+from sympy.testing.pytest import XFAIL
 import sympy
 
 
@@ -80,11 +76,11 @@ def test_numbersymbol():
     source = result[1]
     expected = (
         "fn test() -> f64 {\n"
-        "    const Catalan: f64 = 0.915965594177219;\n"
+        "    const Catalan: f64 = %s;\n"
         "    let out1 = PI.powf(Catalan);\n"
         "    out1\n"
         "}\n"
-    )
+    ) % Catalan.evalf(17)
     assert source == expected
 
 
@@ -97,13 +93,13 @@ def test_numbersymbol_inline():
     source = result[1]
     expected = (
         "fn test() -> (f64, f64) {\n"
-        "    const Catalan: f64 = 0.915965594177219;\n"
-        "    const EulerGamma: f64 = 0.5772156649015329;\n"
+        "    const Catalan: f64 = %s;\n"
+        "    const EulerGamma: f64 = %s;\n"
         "    let out1 = PI.powf(Catalan);\n"
         "    let out2 = EulerGamma);\n"
         "    (out1, out2)\n"
         "}\n"
-    )
+    ) % (Catalan.evalf(17), EulerGamma.evalf(17))
     assert source == expected
 
 
@@ -207,7 +203,7 @@ def test_complicated_rs_codegen():
 
 def test_output_arg_mixed_unordered():
     # named outputs are alphabetical, unnamed output appear in the given order
-    from sympy import sin, cos, tan
+    from sympy import sin, cos
     a = symbols("a")
     name_expr = ("foo", [cos(2*x), Equality(y, sin(x)), cos(x), Equality(a, sin(2*x))])
     result, = codegen(name_expr, "Rust", header=False, empty=False)
@@ -226,7 +222,7 @@ def test_output_arg_mixed_unordered():
 
 
 def test_piecewise_():
-    pw = Piecewise((0, x < -1), (x**2, x <= 1), (-x+2, x > 1), (1, True))
+    pw = Piecewise((0, x < -1), (x**2, x <= 1), (-x+2, x > 1), (1, True), evaluate=False)
     name_expr = ("pwtest", pw)
     result, = codegen(name_expr, "Rust", header=False, empty=False)
     source = result[1]
@@ -237,7 +233,7 @@ def test_piecewise_():
         "    } else if (x <= 1) {\n"
         "        x.powi(2)\n"
         "    } else if (x > 1) {\n"
-        "        -x + 2\n"
+        "        2 - x\n"
         "    } else {\n"
         "        1\n"
         "    };\n"
