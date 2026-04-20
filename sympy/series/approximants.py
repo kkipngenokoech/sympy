@@ -1,10 +1,6 @@
-from __future__ import print_function, division
-
-from sympy.utilities import public
-
-from sympy.core.compatibility import range
 from sympy import Integer
 from sympy.core import Symbol
+from sympy.utilities import public
 
 @public
 def approximants(l, X=Symbol('x'), simplify=False):
@@ -13,6 +9,9 @@ def approximants(l, X=Symbol('x'), simplify=False):
     It can also be used for computing the rational generating function of a
     series when possible, since the last approximant returned by the generator
     will be the generating function (if any).
+
+    Explanation
+    ===========
 
     The input list can contain more complex expressions than integer or rational
     numbers; symbols may also be involved in the computation. An example below
@@ -49,8 +48,9 @@ def approximants(l, X=Symbol('x'), simplify=False):
     -1/(t*(x + 1) - 1)
     nan
 
-    See also
+    See Also
     ========
+
     See function sympy.concrete.guess.guess_generating_function_rational and
     function mpmath.pade
 

@@ -1,15 +1,13 @@
 """Implementation of :class:`ComplexField` class. """
 
-from __future__ import print_function, division
 
 from sympy.core.numbers import Float, I
-from sympy.utilities import public
-
-from sympy.polys.domains.field import Field
-from sympy.polys.domains.simpledomain import SimpleDomain
 from sympy.polys.domains.characteristiczero import CharacteristicZero
+from sympy.polys.domains.field import Field
 from sympy.polys.domains.mpelements import MPContext
+from sympy.polys.domains.simpledomain import SimpleDomain
 from sympy.polys.polyerrors import DomainError, CoercionFailed
+from sympy.utilities import public
 
 @public
 class ComplexField(Field, CharacteristicZero, SimpleDomain):
@@ -44,7 +42,7 @@ class ComplexField(Field, CharacteristicZero, SimpleDomain):
         return self._context.tolerance
 
     def __init__(self, prec=_default_precision, dps=None, tol=None):
-        context = MPContext(prec, dps, tol)
+        context = MPContext(prec, dps, tol, False)
         context._parent = self
         self._context = context
 
@@ -102,6 +100,22 @@ class ComplexField(Field, CharacteristicZero, SimpleDomain):
     def get_exact(self):
         """Returns an exact domain associated with ``self``. """
         raise DomainError("there is no exact domain associated with %s" % self)
+
+    def is_negative(self, element):
+        """Returns ``False`` for any ``ComplexElement``. """
+        return False
+
+    def is_positive(self, element):
+        """Returns ``False`` for any ``ComplexElement``. """
+        return False
+
+    def is_nonnegative(self, element):
+        """Returns ``False`` for any ``ComplexElement``. """
+        return False
+
+    def is_nonpositive(self, element):
+        """Returns ``False`` for any ``ComplexElement``. """
+        return False
 
     def gcd(self, a, b):
         """Returns GCD of ``a`` and ``b``. """

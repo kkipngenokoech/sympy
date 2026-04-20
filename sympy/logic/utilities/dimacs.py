@@ -4,8 +4,6 @@ www.cs.ubc.ca/~hoos/SATLIB/Benchmarks/SAT/satformat.ps
 
 """
 
-from __future__ import print_function, division
-
 from sympy.core import Symbol
 from sympy.logic.boolalg import And, Or
 import re
@@ -31,8 +29,8 @@ def load(s):
 
     lines = s.split('\n')
 
-    pComment = re.compile('c.*')
-    pStats = re.compile('p\s*cnf\s*(\d*)\s*(\d*)')
+    pComment = re.compile(r'c.*')
+    pStats = re.compile(r'p\s*cnf\s*(\d*)\s*(\d*)')
 
     while len(lines) > 0:
         line = lines.pop(0)
