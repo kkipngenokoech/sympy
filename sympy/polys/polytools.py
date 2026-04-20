@@ -255,7 +255,7 @@ class Poly(Expr):
         ========
 
         >>> from sympy import Poly
-        >>> from sympy.abc import x, y
+        >>> from sympy.abc import x, y, z
 
         >>> Poly(x**2 + 1).free_symbols
         {x}
@@ -263,12 +263,17 @@ class Poly(Expr):
         {x, y}
         >>> Poly(x**2 + y, x).free_symbols
         {x, y}
+        >>> Poly(x**2 + y, x, z).free_symbols
+        {x, y}
 
         """
-        symbols = set([])
-
-        for gen in self.gens:
-            symbols |= gen.free_symbols
+        symbols = set()
+        gens = self.gens
+        for i in range(len(gens)):
+            for monom in self.monoms():
+                if monom[i]:
+                    symbols |= gens[i].free_symbols
+                    break
 
         return symbols | self.free_symbols_in_domain
 
@@ -609,7 +614,10 @@ class Poly(Expr):
 
     def ltrim(f, gen):
         """
-        Remove dummy generators from the "left" of ``f``.
+        Remove dummy generators from ``f`` that are to the left of
+        specified ``gen`` in the generators as ordered. When ``gen``
+        is an integer, it refers to the generator located at that
+        position within the tuple of generators of ``f``.
 
         Examples
         ========
@@ -619,19 +627,22 @@ class Poly(Expr):
 
         >>> Poly(y**2 + y*z**2, x, y, z).ltrim(y)
         Poly(y**2 + y*z**2, y, z, domain='ZZ')
+        >>> Poly(z, x, y, z).ltrim(-1)
+        Poly(z, z, domain='ZZ')
 
         """
         rep = f.as_dict(native=True)
         j = f._gen_to_level(gen)
+
         terms = {}
 
         for monom, coeff in rep.items():
-            monom = monom[j:]
 
-            if monom not in terms:
-                terms[monom] = coeff
-            else:
+            if any(i for i in monom[:j]):
+                # some generator is used in the portion to be trimmed
                 raise PolynomialError("can't left trim %s" % f)
+
+            terms[monom[j:]] = coeff
 
         gens = f.gens[j:]
 
@@ -653,7 +664,7 @@ class Poly(Expr):
         False
 
         """
-        indices = set([])
+        indices = set()
 
         for gen in gens:
             try:
@@ -4098,7 +4109,7 @@ class Poly(Expr):
 
     @_sympifyit('g', NotImplemented)
     def __ne__(f, g):
-        return not f.__eq__(g)
+        return not f == g
 
     def __nonzero__(f):
         return not f.is_zero
@@ -4107,7 +4118,7 @@ class Poly(Expr):
 
     def eq(f, g, strict=False):
         if not strict:
-            return f.__eq__(g)
+            return f == g
         else:
             return f._strict_eq(sympify(g))
 
@@ -4372,7 +4383,7 @@ def _update_args(args, key, value):
 
 
 @public
-def degree(f, *gens, **args):
+def degree(f, gen=0):
     """
     Return the degree of ``f`` in the given variable.
 
@@ -4391,15 +4402,32 @@ def degree(f, *gens, **args):
     >>> degree(0, x)
     -oo
 
+    See also
+    ========
+    total_degree
+    degree_list
     """
-    options.allowed_flags(args, ['gen', 'polys'])
 
-    try:
-        F, opt = poly_from_expr(f, *gens, **args)
-    except PolificationFailed as exc:
-        raise ComputationFailed('degree', 1, exc)
+    f = sympify(f, strict=True)
+    if f.is_Poly:
+        p = f
+        isNum = p.as_expr().is_Number
+    else:
+        isNum = f.is_Number
+        if not isNum:
+            p, _ = poly_from_expr(f)
 
-    return sympify(F.degree(opt.gen))
+    if isNum:
+        return S.Zero if f else S.NegativeInfinity
+
+    if not sympify(gen, strict=True).is_Number:
+        if f.is_Poly and gen not in p.gens:
+            # try recast without explicit gens
+            p, _ = poly_from_expr(f.as_expr())
+        if gen not in p.gens:
+            return S.Zero
+
+    return Integer(p.degree(gen))
 
 
 @public
@@ -6689,7 +6717,7 @@ class GroebnerBasis(Basic):
             return False
 
     def __ne__(self, other):
-        return not self.__eq__(other)
+        return not self == other
 
     @property
     def is_zero_dimensional(self):

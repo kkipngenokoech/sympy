@@ -120,6 +120,76 @@ def powsimp(expr, deep=False, combine='all', force=False, measure=count_ops):
     if expr.is_Pow:
         return recurse(expr*_y, deep=False)/_y
 
+    if expr.is_Add:
+        # Handle Add expressions by collecting terms with same base and exponent
+        from sympy.core.add import Add
+        from sympy.core.mul import Mul
+        from sympy.core.numbers import Number
+        
+        # Group terms by their base and exponent
+        term_groups = defaultdict(list)
+        
+        for term in expr.args:
+            if term.is_Mul:
+                # Extract coefficient and power part
+                coeff = S.One
+                power_part = S.One
+                
+                for factor in term.args:
+                    if factor.is_Number:
+                        coeff *= factor
+                    else:
+                        power_part *= factor
+                
+                # Use the power part as the key
+                if power_part.is_Pow:
+                    base, exp = power_part.as_base_exp()
+                    key = (base, exp)
+                else:
+                    key = (power_part, S.One)
+                    
+                term_groups[key].append(coeff)
+            elif term.is_Pow:
+                base, exp = term.as_base_exp()
+                key = (base, exp)
+                term_groups[key].append(S.One)
+            elif term.is_Number:
+                key = (S.One, S.Zero)  # constant term
+                term_groups[key].append(term)
+            else:
+                # Symbol or other atomic expression
+                key = (term, S.One)
+                term_groups[key].append(S.One)
+        
+        # Combine coefficients for each group
+        new_terms = []
+        for (base, exp), coeffs in term_groups.items():
+            total_coeff = sum(coeffs)
+            if total_coeff != 0:
+                if base == S.One and exp == S.Zero:
+                    # Constant term
+                    new_terms.append(total_coeff)
+                elif exp == S.One:
+                    # Linear term
+                    if total_coeff == S.One:
+                        new_terms.append(base)
+                    else:
+                        new_terms.append(total_coeff * base)
+                else:
+                    # Power term
+                    power_term = Pow(base, exp)
+                    if total_coeff == S.One:
+                        new_terms.append(power_term)
+                    else:
+                        new_terms.append(total_coeff * power_term)
+        
+        if not new_terms:
+            return S.Zero
+        elif len(new_terms) == 1:
+            return new_terms[0]
+        else:
+            return Add(*new_terms)
+
     if not expr.is_Mul:
         return expr
 

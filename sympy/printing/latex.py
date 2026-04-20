@@ -228,13 +228,13 @@ class LatexPrinter(Printer):
         """
         from sympy import Integral, Piecewise, Product, Sum
 
-        if expr.is_Add:
+        if expr.is_Mul:
+            if not first and _coeff_isneg(expr):
+                return True
+        elif precedence_traditional(expr) < PRECEDENCE["Mul"]:
             return True
         elif expr.is_Relational:
             return True
-        elif expr.is_Mul:
-            if not first and _coeff_isneg(expr):
-                return True
         if expr.is_Piecewise:
             return True
         if any([expr.has(x) for x in (Mod,)]):
@@ -346,6 +346,30 @@ class LatexPrinter(Printer):
             return r"- \infty"
         else:
             return str_real
+
+    def _print_Cross(self, expr):
+        vec1 = expr._expr1
+        vec2 = expr._expr2
+        return r"%s \times %s" % (self.parenthesize(vec1, PRECEDENCE['Mul']),
+                                  self.parenthesize(vec2, PRECEDENCE['Mul']))
+
+    def _print_Curl(self, expr):
+        vec = expr._expr
+        return r"\nabla\times %s" % self.parenthesize(vec, PRECEDENCE['Mul'])
+
+    def _print_Divergence(self, expr):
+        vec = expr._expr
+        return r"\nabla\cdot %s" % self.parenthesize(vec, PRECEDENCE['Mul'])
+
+    def _print_Dot(self, expr):
+        vec1 = expr._expr1
+        vec2 = expr._expr2
+        return r"%s \cdot %s" % (self.parenthesize(vec1, PRECEDENCE['Mul']),
+                                  self.parenthesize(vec2, PRECEDENCE['Mul']))
+
+    def _print_Gradient(self, expr):
+        func = expr._expr
+        return r"\nabla\cdot %s" % self.parenthesize(func, PRECEDENCE['Mul'])
 
     def _print_Mul(self, expr):
         include_parens = False
@@ -460,6 +484,9 @@ class LatexPrinter(Printer):
             and expr.exp.is_Rational \
                 and expr.exp.q != 1:
             base, p, q = self.parenthesize(expr.base, PRECEDENCE['Pow']), expr.exp.p, expr.exp.q
+            #fixes issue #12886, adds parentheses before superscripts raised to powers
+            if '^' in base and expr.base.is_Symbol:
+                base = r"\left(%s\right)" % base
             if expr.base.is_Function:
                 return self._print(expr.base, "%s/%s" % (p, q))
             return r"%s^{%s/%s}" % (base, p, q)
@@ -481,9 +508,13 @@ class LatexPrinter(Printer):
                     if tex[:1] == "-":
                         return tex[1:].strip()
                 tex = r"%s^{%s}"
+                #fixes issue #12886, adds parentheses before superscripts raised to powers
+                base = self.parenthesize(expr.base, PRECEDENCE['Pow'])
+                if '^' in base and expr.base.is_Symbol:
+                    base = r"\left(%s\right)" % base
+                exp = self._print(expr.exp)
 
-                return tex % (self.parenthesize(expr.base, PRECEDENCE['Pow']),
-                              self._print(expr.exp))
+                return tex % (base, exp)
 
     def _print_UnevaluatedExpr(self, expr):
         return self._print(expr.args[0])
