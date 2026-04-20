@@ -107,12 +107,11 @@ matrix element ``M[i, j]`` as in the following diagram::
 
 from __future__ import print_function, division
 
-import collections
-
 from sympy.core.sympify import _sympify
 from sympy.functions.special.tensor_functions import KroneckerDelta
 from sympy.core import Expr, Tuple, Symbol, sympify, S
-from sympy.core.compatibility import is_sequence, string_types, NotIterable, range
+from sympy.core.compatibility import (is_sequence, string_types, NotIterable,
+    range, Iterable)
 
 
 class IndexException(Exception):
@@ -136,7 +135,6 @@ class Indexed(Expr):
     """
     is_commutative = True
     is_Indexed = True
-    is_Symbol = True
     is_symbol = True
     is_Atom = True
 
@@ -153,13 +151,17 @@ class Indexed(Expr):
             raise TypeError(filldedent("""
                 Indexed expects string, Symbol, or IndexedBase as base."""))
         args = list(map(sympify, args))
-        if isinstance(base, (NDimArray, collections.Iterable, Tuple, MatrixBase)) and all([i.is_number for i in args]):
+        if isinstance(base, (NDimArray, Iterable, Tuple, MatrixBase)) and all([i.is_number for i in args]):
             if len(args) == 1:
                 return base[args[0]]
             else:
                 return base[args]
 
         return Expr.__new__(cls, base, *args, **kw_args)
+
+    @property
+    def name(self):
+        return str(self)
 
     @property
     def _diff_wrt(self):
@@ -306,9 +308,19 @@ class Indexed(Expr):
         indices = list(map(p.doprint, self.indices))
         return "%s[%s]" % (p.doprint(self.base), ", ".join(indices))
 
-    # @property
-    # def free_symbols(self):
-    #     return {self.base}
+    @property
+    def free_symbols(self):
+        base_free_symbols = self.base.free_symbols
+        indices_free_symbols = {
+            fs for i in self.indices for fs in i.free_symbols}
+        if base_free_symbols:
+            return {self} | base_free_symbols | indices_free_symbols
+        else:
+            return indices_free_symbols
+
+    @property
+    def expr_free_symbols(self):
+        return {self}
 
 
 class IndexedBase(Expr, NotIterable):
@@ -363,7 +375,6 @@ class IndexedBase(Expr, NotIterable):
 
     """
     is_commutative = True
-    is_Symbol = True
     is_symbol = True
     is_Atom = True
 
@@ -376,7 +387,7 @@ class IndexedBase(Expr, NotIterable):
             pass
         elif isinstance(label, (MatrixBase, NDimArray)):
             return label
-        elif isinstance(label, collections.Iterable):
+        elif isinstance(label, Iterable):
             return _sympify(label)
         else:
             label = _sympify(label)
@@ -390,13 +401,18 @@ class IndexedBase(Expr, NotIterable):
         strides = kw_args.pop('strides', None)
 
         if shape is not None:
-            obj = Expr.__new__(cls, label, shape, **kw_args)
+            obj = Expr.__new__(cls, label, shape)
         else:
-            obj = Expr.__new__(cls, label, **kw_args)
+            obj = Expr.__new__(cls, label)
         obj._shape = shape
         obj._offset = offset
         obj._strides = strides
+        obj._name = str(label)
         return obj
+
+    @property
+    def name(self):
+        return self._name
 
     def __getitem__(self, indices, **kw_args):
         if is_sequence(indices):
@@ -510,11 +526,9 @@ class Idx(Expr):
         * ``tuple``: The two elements are interpreted as the lower and upper
           bounds of the range, respectively.
 
-    Note: the ``Idx`` constructor is rather pedantic in that it only accepts
-    integer arguments.  The only exception is that you can use ``-oo`` and
-    ``oo`` to specify an unbounded range.  For all other cases, both label and
-    bounds must be declared as integers, e.g. if ``n`` is given as an argument
-    then ``n.is_integer`` must return ``True``.
+    Note: bounds of the range are assumed to be either integer or infinite (oo
+    and -oo are allowed to specify an unbounded range). If ``n`` is given as a
+    bound, then ``n.is_integer`` must not return false.
 
     For convenience, if the label is given as a string it is automatically
     converted to an integer symbol.  (Note: this conversion is not done for
@@ -556,7 +570,6 @@ class Idx(Expr):
     is_integer = True
     is_finite = True
     is_real = True
-    is_Symbol = True
     is_symbol = True
     is_Atom = True
     _diff_wrt = True
@@ -581,7 +594,7 @@ class Idx(Expr):
                 raise ValueError(filldedent("""
                     Idx range tuple must have length 2, but got %s""" % len(range)))
             for bound in range:
-                if not (bound.is_integer or abs(bound) is S.Infinity):
+                if bound.is_integer is False:
                     raise TypeError("Idx object requires integer bounds.")
             args = label, Tuple(*range)
         elif isinstance(range, Expr):

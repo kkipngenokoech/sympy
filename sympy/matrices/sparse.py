@@ -5,16 +5,16 @@ from collections import defaultdict
 
 from sympy.core.containers import Dict
 from sympy.core.expr import Expr
-from sympy.core.compatibility import is_sequence, as_int, range
+from sympy.core.compatibility import is_sequence, as_int, range, Callable
 from sympy.core.logic import fuzzy_and
 from sympy.core.singleton import S
 from sympy.functions import Abs
 from sympy.functions.elementary.miscellaneous import sqrt
 from sympy.utilities.iterables import uniq
 
-from .matrices import MatrixBase, ShapeError, a2idx
+from .matrices import MatrixBase, ShapeError
 from .dense import Matrix
-import collections
+from .common import a2idx
 
 
 class SparseMatrix(MatrixBase):
@@ -53,7 +53,7 @@ class SparseMatrix(MatrixBase):
             self.rows = as_int(args[0])
             self.cols = as_int(args[1])
 
-            if isinstance(args[2], collections.Callable):
+            if isinstance(args[2], Callable):
                 op = args[2]
                 for i in range(self.rows):
                     for j in range(self.cols):
@@ -985,8 +985,10 @@ class MutableSparseMatrix(SparseMatrix, MatrixBase):
         >>> C == A.row_insert(A.rows, Matrix(B))
         True
         """
-        if not self:
-            return type(self)(other)
+        # A null matrix can always be stacked (see  #10770)
+        if self.rows == 0 and self.cols != other.cols:
+            return self._new(0, other.cols, []).col_join(other)
+
         A, B = self, other
         if not A.cols == B.cols:
             raise ShapeError()
@@ -1191,8 +1193,10 @@ class MutableSparseMatrix(SparseMatrix, MatrixBase):
         >>> C == A.col_insert(A.cols, B)
         True
         """
-        if not self:
-            return type(self)(other)
+        # A null matrix can always be stacked (see  #10770)
+        if self.cols == 0 and self.rows != other.rows:
+            return self._new(other.rows, 0, []).row_join(other)
+
         A, B = self, other
         if not A.rows == B.rows:
             raise ShapeError()

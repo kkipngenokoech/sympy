@@ -5,8 +5,9 @@ from __future__ import print_function, division
 import sys
 import os
 import re as _re
+import struct
 from textwrap import fill, dedent
-from sympy.core.compatibility import get_function_name, range
+from sympy.core.compatibility import get_function_name, range, as_int
 
 
 
@@ -104,13 +105,7 @@ def rawlines(s):
         else:
             return "dedent('''\\\n    %s''')" % rv
 
-size = getattr(sys, "maxint", None)
-if size is None:  # Python 3 doesn't have maxint
-    size = sys.maxsize
-if size > 2**32:
-    ARCH = "64-bit"
-else:
-    ARCH = "32-bit"
+ARCH = str(struct.calcsize('P') * 8) + "-bit"
 
 
 # XXX: PyPy doesn't support hash randomization
@@ -224,16 +219,42 @@ def find_executable(executable, path=None):
         return None
 
 
-def func_name(x):
+def func_name(x, short=False):
     '''Return function name of `x` (if defined) else the `type(x)`.
+    If short is True and there is a shorter alias for the result,
+    return the alias.
+
+    Examples
+    ========
+
+    >>> from sympy.utilities.misc import func_name
+    >>> from sympy.abc import x
+    >>> func_name(x < 1)
+    'StrictLessThan'
+    >>> func_name(x < 1, short=True)
+    'Lt'
+
     See Also
     ========
     sympy.core.compatibility get_function_name
     '''
+    alias = {
+    'GreaterThan': 'Ge',
+    'StrictGreaterThan': 'Gt',
+    'LessThan': 'Le',
+    'StrictLessThan': 'Lt',
+    'Equality': 'Eq',
+    'Unequality': 'Ne',
+    }
     typ = type(x)
     if str(typ).startswith("<type '"):
         typ = str(typ).split("'")[1].split("'")[0]
-    return getattr(getattr(x, 'func', x), '__name__', typ)
+    elif str(typ).startswith("<class '"):
+        typ = str(typ).split("'")[1].split("'")[0]
+    rv = getattr(getattr(x, 'func', x), '__name__', typ)
+    if short:
+        rv = alias.get(rv, rv)
+    return rv
 
 
 def _replace(reps):
@@ -400,3 +421,30 @@ def translate(s, a, b=None, c=None):
             s = s.translate(dict(
                 [(i, ord(c)) for i, c in enumerate(table)]))
         return s
+
+
+def ordinal(num):
+    """Return ordinal number string of num, e.g. 1 becomes 1st.
+    """
+    # modified from https://codereview.stackexchange.com/questions/41298/producing-ordinal-numbers
+    n = as_int(num)
+    if n < 0:
+        return '-%s' % ordinal(-n)
+    if n == 0 or 4 <= n <= 20:
+        suffix = 'th'
+    elif n == 1 or (n % 10) == 1:
+        suffix = 'st'
+    elif n == 2 or (n % 10) == 2:
+        suffix = 'nd'
+    elif n == 3 or (n % 10) == 3:
+        suffix = 'rd'
+    elif n < 101:
+        suffix = 'th'
+    else:
+        suffix = ordinal(n % 100)
+        if len(suffix) == 3:
+            # e.g. 103 -> 3rd
+            # so add other 0 back
+            suffix = '0' + suffix
+        n = str(n)[:-2]
+    return str(n) + suffix
