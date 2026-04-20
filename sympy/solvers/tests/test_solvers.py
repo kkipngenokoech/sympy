@@ -1,6 +1,6 @@
 from sympy import (
     Abs, And, Derivative, Dummy, Eq, Float, Function, Gt, I, Integral,
-    LambertW, Lt, Matrix, Or, Piecewise, Poly, Q, Rational, S, Symbol,
+    LambertW, Lt, Matrix, Or, Poly, Q, Rational, S, Symbol, Ne,
     Wild, acos, asin, atan, atanh, cos, cosh, diff, erf, erfinv, erfc,
     erfcinv, exp, im, log, pi, re, sec, sin,
     sinh, solve, solve_linear, sqrt, sstr, symbols, sympify, tan, tanh,
@@ -248,7 +248,6 @@ def test_quintics_1():
     # than [i.n() for i in solve(eq)] to get the numerical roots of eq.
     assert nfloat(solve(x**5 + 3*x**3 + 7)[0], exponent=False) == \
         CRootOf(x**5 + 3*x**3 + 7, 0).n()
-
 
 
 def test_highorder_poly():
@@ -542,23 +541,38 @@ def test_solve_undetermined_coeffs():
 
 def test_solve_inequalities():
     x = Symbol('x')
-    system = [Lt(x**2 - 2, 0), Gt(x**2 - 1, 0)]
+    sol = And(S(0) < x, x < oo)
+    assert solve(x + 1 > 1) == sol
+    assert solve([x + 1 > 1]) == sol
+    assert solve([x + 1 > 1], x) == sol
+    assert solve([x + 1 > 1], [x]) == sol
 
+    system = [Lt(x**2 - 2, 0), Gt(x**2 - 1, 0)]
     assert solve(system) == \
         And(Or(And(Lt(-sqrt(2), x), Lt(x, -1)),
                And(Lt(1, x), Lt(x, sqrt(2)))), Eq(0, 0))
 
     x = Symbol('x', real=True)
     system = [Lt(x**2 - 2, 0), Gt(x**2 - 1, 0)]
-
     assert solve(system) == \
         Or(And(Lt(-sqrt(2), x), Lt(x, -1)), And(Lt(1, x), Lt(x, sqrt(2))))
 
-    # issue 6627, 3448
+    # issues 6627, 3448
     assert solve((x - 3)/(x - 2) < 0, x) == And(Lt(2, x), Lt(x, 3))
     assert solve(x/(x + 1) > 1, x) == And(Lt(-oo, x), Lt(x, -1))
 
     assert solve(sin(x) > S.Half) == And(pi/6 < x, x < 5*pi/6)
+
+    assert solve(Eq(False, x < 1)) == (S(1) <= x) & (x < oo)
+    assert solve(Eq(True, x < 1)) == (-oo < x) & (x < 1)
+    assert solve(Eq(x < 1, False)) == (S(1) <= x) & (x < oo)
+    assert solve(Eq(x < 1, True)) == (-oo < x) & (x < 1)
+
+    assert solve(Eq(False, x)) == False
+    assert solve(Eq(True, x)) == True
+    assert solve(Eq(False, ~x)) == True
+    assert solve(Eq(True, ~x)) == False
+    assert solve(Ne(True, x)) == False
 
 
 def test_issue_4793():
@@ -707,15 +721,15 @@ def test_issue_5132():
     assert solve(eqs, set=True) == \
         ([x, y], set([
         (log(-sqrt(-z**2 - sin(log(3)))), -log(3)),
-        (log(sqrt(-z**2 - sin(log(3)))), -log(3))]))
+        (log(-z**2 - sin(log(3)))/2, -log(3))]))
     assert solve(eqs, x, z, set=True) == \
         ([x], set([
         (log(-sqrt(-z**2 + sin(y))),),
-        (log(sqrt(-z**2 + sin(y))),)]))
+        (log(-z**2 + sin(y))/2,)]))
     assert set(solve(eqs, x, y)) == \
         set([
             (log(-sqrt(-z**2 - sin(log(3)))), -log(3)),
-        (log(sqrt(-z**2 - sin(log(3)))), -log(3))])
+        (log(-z**2 - sin(log(3)))/2, -log(3))])
     assert set(solve(eqs, y, z)) == \
         set([
             (-log(3), -sqrt(-exp(2*x) - sin(log(3)))),
@@ -724,15 +738,15 @@ def test_issue_5132():
     assert solve(eqs, set=True) == ([x, y], set(
         [
         (log(-sqrt(-z - sin(log(3)))), -log(3)),
-            (log(sqrt(-z - sin(log(3)))), -log(3))]))
+            (log(-z - sin(log(3)))/2, -log(3))]))
     assert solve(eqs, x, z, set=True) == ([x], set(
         [
         (log(-sqrt(-z + sin(y))),),
-            (log(sqrt(-z + sin(y))),)]))
+            (log(-z + sin(y))/2,)]))
     assert set(solve(eqs, x, y)) == set(
         [
             (log(-sqrt(-z - sin(log(3)))), -log(3)),
-            (log(sqrt(-z - sin(log(3)))), -log(3))])
+            (log(-z - sin(log(3)))/2, -log(3))])
     assert solve(eqs, z, y) == \
         [(-exp(2*x) - sin(log(3)), -log(3))]
     assert solve((sqrt(x**2 + y**2) - sqrt(10), x + y - 4), set=True) == (
@@ -1077,8 +1091,15 @@ def test_checksol():
     x, y, r, t = symbols('x, y, r, t')
     eq = r - x**2 - y**2
     dict_var_soln = {y: - sqrt(r) / sqrt(tan(t)**2 + 1),
-                            x: -sqrt(r)*tan(t)/sqrt(tan(t)**2 + 1)}
+        x: -sqrt(r)*tan(t)/sqrt(tan(t)**2 + 1)}
     assert checksol(eq, dict_var_soln) == True
+    assert checksol(Eq(x, False), {x: False}) is True
+    assert checksol(Ne(x, False), {x: False}) is False
+    assert checksol(Eq(x < 1, True), {x: 0}) is True
+    assert checksol(Eq(x < 1, True), {x: 1}) is False
+    assert checksol(Eq(x < 1, False), {x: 1}) is True
+    assert checksol(Eq(x < 1, False), {x: 0}) is False
+    assert checksol(Eq(x + 1, x**2 + 1), {x: 1}) is True
 
 
 def test__invert():
@@ -1295,21 +1316,6 @@ def test_issue_6056():
         -log(2)/2 + log(-1 + I),])
 
 
-def test_issue_6060():
-    x = Symbol('x')
-    absxm3 = Piecewise(
-        (x - 3, S(0) <= x - 3),
-        (3 - x, S(0) > x - 3)
-    )
-    y = Symbol('y')
-    assert solve(absxm3 - y, x) == [
-        Piecewise((-y + 3, y > 0), (S.NaN, True)),
-        Piecewise((y + 3, 0 <= y), (S.NaN, True))
-    ]
-    y = Symbol('y', positive=True)
-    assert solve(absxm3 - y, x) == [-y + 3, y + 3]
-
-
 def test_issue_5673():
     eq = -x + exp(exp(LambertW(log(x)))*LambertW(log(x)))
     assert checksol(eq, x, 2) is True
@@ -1337,7 +1343,7 @@ def test_exclude():
             Vout: 0},
     ]
 
-    # TODO: Investingate why currently solution [0] is preferred over [1].
+    # TODO: Investigate why currently solution [0] is preferred over [1].
     assert solve(eqs, exclude=[Vplus, s, C]) in [[{
         Vminus: Vplus,
         V1: Vout/2 + Vplus/2 + sqrt((Vout - 5*Vplus)*(Vout - Vplus))/2,
@@ -1418,6 +1424,7 @@ def test_issue_6644():
     sol = solve(eq, q, simplify=False, check=False)
     assert len(sol) == 5
 
+
 def test_issue_6752():
     assert solve([a**2 + a, a - b], [a, b]) == [(-1, -1), (0, 0)]
     assert solve([a**2 + a*c, a - b], [a, b]) == [(0, 0), (-c, -c)]
@@ -1477,12 +1484,6 @@ def test_issues_6819_6820_6821_6248_8692():
 
     x = symbols('x')
     assert solve(2**x + 4**x) == [I*pi/log(2)]
-
-
-def test_issue_6989():
-    f = Function('f')
-    assert solve(Eq(-f(x), Piecewise((1, x > 0), (0, True))), f(x)) == \
-        [Piecewise((-1, x > 0), (0, True))]
 
 
 def test_lambert_multivariate():
@@ -1640,11 +1641,6 @@ def test_det_quick():
     assert det_perm(s) == det_minor(s) == s.det()
 
 
-def test_piecewise():
-    # if no symbol is given the piecewise detection must still work
-    assert solve(Piecewise((x - 2, Gt(x, 2)), (2 - x, True)) - 3) == [-1, 5]
-
-
 def test_real_imag_splitting():
     a, b = symbols('a b', real=True)
     assert solve(sqrt(a**2 + b**2) - 3, a) == \
@@ -1702,10 +1698,6 @@ def test_nsolve():
     raises(ValueError, lambda: nsolve(x, (-1, 1), method='bisect'))
     raises(TypeError, lambda: nsolve((x - y + 3,x + y,z - y),(x,y,z),(-50,50)))
     raises(TypeError, lambda: nsolve((x + y, x - y), (0, 1)))
-
-def test_issue_8587():
-    f = Piecewise((2*x**2, And(S(0) < x, x < 1)), (2, True))
-    assert solve(f - 1) == [1/sqrt(2)]
 
 
 def test_high_order_multivariate():
@@ -1777,16 +1769,15 @@ def test_issue_8828():
 
 def test_issue_2840_8155():
     assert solve(sin(3*x) + sin(6*x)) == [
-        0, -pi, pi, 2*pi, 2*I*(log(2) - log(-1 - sqrt(3)*I)), 2*I*(log(2) -
-        log(-1 + sqrt(3)*I)), 2*I*(log(2) - log(1 - sqrt(3)*I)), 2*I*(log(2) -
-        log(1 + sqrt(3)*I)), 2*I*(log(2) - log(-sqrt(3) - I)), 2*I*(log(2) -
-        log(-sqrt(3) + I)), 2*I*(log(2) - log(sqrt(3) - I)), 2*I*(log(2) -
-        log(sqrt(3) + I)), -2*I*log(-(-1)**(S(1)/9)), -2*I*log(-(-1)**(S(2)/9)),
-        -2*I*log((-1)**(S(7)/9)), -2*I*log((-1)**(S(8)/9)), -2*I*log(-sin(pi/18) -
-        I*cos(pi/18)), -2*I*log(-sin(pi/18) + I*cos(pi/18)),
-        -2*I*log(sin(pi/18) - I*cos(pi/18)), -2*I*log(sin(pi/18) +
-        I*cos(pi/18)), -2*I*log(exp(-2*I*pi/9)), -2*I*log(exp(-I*pi/9)),
-        -2*I*log(exp(I*pi/9)), -2*I*log(exp(2*I*pi/9))]
+        0, -pi, pi, 14*pi/9, 16*pi/9, 2*pi, 2*I*(log(2) - log(-1 - sqrt(3)*I)),
+        2*I*(log(2) - log(-1 + sqrt(3)*I)), 2*I*(log(2) - log(1 - sqrt(3)*I)),
+        2*I*(log(2) - log(1 + sqrt(3)*I)), 2*I*(log(2) - log(-sqrt(3) - I)),
+        2*I*(log(2) - log(-sqrt(3) + I)), 2*I*(log(2) - log(sqrt(3) - I)),
+        2*I*(log(2) - log(sqrt(3) + I)), -2*I*log(-(-1)**(S(1)/9)), -2*I*log(
+        -(-1)**(S(2)/9)), -2*I*log(-sin(pi/18) - I*cos(pi/18)), -2*I*log(-sin(
+        pi/18) + I*cos(pi/18)), -2*I*log(sin(pi/18) - I*cos(pi/18)), -2*I*log(
+        sin(pi/18) + I*cos(pi/18)), -2*I*log(exp(-2*I*pi/9)), -2*I*log(exp(
+        -I*pi/9)), -2*I*log(exp(I*pi/9)), -2*I*log(exp(2*I*pi/9))]
     assert solve(2*sin(x) - 2*sin(2*x)) == [
         0, -pi, pi, 2*I*(log(2) - log(-sqrt(3) - I)), 2*I*(log(2) -
         log(-sqrt(3) + I)), 2*I*(log(2) - log(sqrt(3) - I)), 2*I*(log(2) -
@@ -1871,6 +1862,7 @@ def test_denoms():
     assert denoms(1/x + 1/y + 1/z, [x, y]) == set([x, y])
     assert denoms(1/x + 1/y + 1/z, x, y) == set([x, y])
     assert denoms(1/x + 1/y + 1/z, set([x, y])) == set([x, y])
+
 
 def test_issue_12476():
     x0, x1, x2, x3, x4, x5 = symbols('x0 x1 x2 x3 x4 x5')

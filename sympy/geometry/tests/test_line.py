@@ -53,6 +53,14 @@ def test_angle_between():
                                 Line3D(Point3D(0, 0, 0), Point3D(5, 0, 0))), acos(sqrt(3) / 3)
 
 
+def test_closing_angle():
+    a = Ray((0, 0), angle=0)
+    b = Ray((1, 2), angle=pi/2)
+    assert a.closing_angle(b) == -pi/2
+    assert b.closing_angle(a) == pi/2
+    assert a.closing_angle(a) == 0
+
+
 def test_arbitrary_point():
     l1 = Line3D(Point3D(0, 0, 0), Point3D(1, 1, 1))
     l2 = Line(Point(x1, x1), Point(y1, y1))
@@ -68,6 +76,7 @@ def test_arbitrary_point():
     assert Segment3D(Point3D(x1, x1, x1), Point3D(y1, y1, y1)).length == sqrt(3) * sqrt((x1 - y1) ** 2)
     assert Segment3D((1, 1, 1), (2, 3, 4)).arbitrary_point() == \
            Point3D(t + 1, 2 * t + 1, 3 * t + 1)
+    raises(ValueError, (lambda: Line((x, 1), (2, 3)).arbitrary_point(x)))
 
 
 def test_are_concurrent_2d():
@@ -278,6 +287,13 @@ def test_contains():
         assert len(w) == 1
 
 
+def test_contains_nonreal_symbols():
+    u, v, w, z = symbols('u, v, w, z')
+    l = Segment(Point(u, w), Point(v, z))
+    p = Point(2*u/3 + v/3, 2*w/3 + z/3)
+    assert l.contains(p)
+
+
 def test_distance_2d():
     p1 = Point(0, 0)
     p2 = Point(1, 1)
@@ -394,9 +410,22 @@ def test_equation():
     assert Line(Point(2, 0), Point(2, 1)).equation() == x - 2
     assert Line(p2, Point(2, 1)).equation() == y - 1
 
-    assert Line3D(Point3D(0, 0, 0), Point3D(1, 1, 1)).equation() == (x, y, z, k)
-    assert Line3D(Point3D(x1, x1, x1), Point3D(y1, y1, y1)).equation() == \
-           ((x - x1) / (-x1 + y1), (-x1 + y) / (-x1 + y1), (-x1 + z) / (-x1 + y1), k)
+    assert Line3D(Point(x1, x1, x1), Point(y1, y1, y1)
+        ).equation() == (-x + y, -x + z)
+    assert Line3D(Point(1, 2, 3), Point(2, 3, 4)
+        ).equation() == (-x + y - 1, -x + z - 2)
+    assert Line3D(Point(1, 2, 3), Point(1, 3, 4)
+        ).equation() == (x - 1, -y + z - 1)
+    assert Line3D(Point(1, 2, 3), Point(2, 2, 4)
+        ).equation() == (y - 2, -x + z - 2)
+    assert Line3D(Point(1, 2, 3), Point(2, 3, 3)
+        ).equation() == (-x + y - 1, z - 3)
+    assert Line3D(Point(1, 2, 3), Point(1, 2, 4)
+        ).equation() == (x - 1, y - 2)
+    assert Line3D(Point(1, 2, 3), Point(1, 3, 3)
+        ).equation() == (x - 1, z - 3)
+    assert Line3D(Point(1, 2, 3), Point(2, 2, 3)
+        ).equation() == (y - 2, z - 3)
 
 
 def test_intersection_2d():
