@@ -1,26 +1,30 @@
 from __future__ import print_function, division
 
 import collections
+from mpmath.libmp.libmpf import prec_to_dps
+from sympy.assumptions.refine import refine
 from sympy.core.add import Add
 from sympy.core.basic import Basic, Atom
 from sympy.core.expr import Expr
+from sympy.core.function import expand_mul
 from sympy.core.power import Pow
-from sympy.core.symbol import Symbol, Dummy, symbols
+from sympy.core.symbol import (Symbol, Dummy, symbols,
+    _uniquely_named_symbol)
 from sympy.core.numbers import Integer, ilcm, Float
 from sympy.core.singleton import S
 from sympy.core.sympify import sympify
-from sympy.core.compatibility import is_sequence, default_sort_key, range, \
-    NotIterable
-
-from sympy.polys import PurePoly, roots, cancel, gcd
-from sympy.simplify import simplify as _simplify, signsimp, nsimplify
-from sympy.utilities.iterables import flatten, numbered_symbols
 from sympy.functions.elementary.miscellaneous import sqrt, Max, Min
 from sympy.functions import Abs, exp, factorial
+from sympy.polys import PurePoly, roots, cancel, gcd
 from sympy.printing import sstr
+from sympy.simplify import simplify as _simplify, signsimp, nsimplify
 from sympy.core.compatibility import reduce, as_int, string_types
-from sympy.assumptions.refine import refine
+
+from sympy.utilities.iterables import flatten, numbered_symbols
 from sympy.core.decorators import call_highest_priority
+from sympy.core.compatibility import (is_sequence, default_sort_key, range,
+    NotIterable)
+
 
 from types import FunctionType
 
@@ -34,6 +38,12 @@ def _iszero(x):
         return x.is_zero
     except AttributeError:
         return None
+
+
+def _is_zero_after_expand_mul(x):
+    """Tests by expand_mul only, suitable for polynomials and rational
+    functions."""
+    return expand_mul(x) == 0
 
 
 class DeferredVector(Symbol, NotIterable):
@@ -171,15 +181,7 @@ class MatrixDeterminant(MatrixCommon):
         http://www.eecis.udel.edu/~saunders/papers/sffge/it5.ps.
         """
 
-        # XXX included as a workaround for issue #12362.  Should use `_find_reasonable_pivot` instead
-        def _find_pivot(l):
-            for pos,val in enumerate(l):
-                if val:
-                    return (pos, val, None, None)
-            return (None, None, None, None)
-
-
-        # Recursively implimented Bareiss' algorithm as per Deanna Richelle Leggett's
+        # Recursively implemented Bareiss' algorithm as per Deanna Richelle Leggett's
         # thesis http://www.math.usm.edu/perry/Research/Thesis_DRL.pdf
         def bareiss(mat, cumm=1):
             if mat.rows == 0:
@@ -188,8 +190,11 @@ class MatrixDeterminant(MatrixCommon):
                 return mat[0, 0]
 
             # find a pivot and extract the remaining matrix
-            # XXX should use `_find_reasonable_pivot`.  Blocked by issue #12362
-            pivot_pos, pivot_val, _, _ = _find_pivot(mat[:, 0])
+            # With the default iszerofunc, _find_reasonable_pivot slows down
+            # the computation by the factor of 2.5 in one test.
+            # Relevant issues: #10279 and #13877.
+            pivot_pos, pivot_val, _, _ = _find_reasonable_pivot(mat[:, 0],
+                                         iszerofunc=_is_zero_after_expand_mul)
             if pivot_pos == None:
                 return S.Zero
 
@@ -284,7 +289,7 @@ class MatrixDeterminant(MatrixCommon):
         """
         return self.cofactor_matrix(method).transpose()
 
-    def charpoly(self, x=Dummy('lambda'), simplify=_simplify):
+    def charpoly(self, x='lambda', simplify=_simplify):
         """Computes characteristic polynomial det(x*I - self) where I is
         the identity matrix.
 
@@ -300,21 +305,27 @@ class MatrixDeterminant(MatrixCommon):
         >>> A.charpoly(x) == A.charpoly(y)
         True
 
-        Specifying ``x`` is optional; a Dummy with name ``lambda`` is used by
+        Specifying ``x`` is optional; a symbol named ``lambda`` is used by
         default (which looks good when pretty-printed in unicode):
 
         >>> A.charpoly().as_expr()
-        _lambda**2 - _lambda - 6
+        lambda**2 - lambda - 6
 
-        No test is done to see that ``x`` doesn't clash with an existing
-        symbol, so using the default (``lambda``) or your own Dummy symbol is
-        the safest option:
+        And if ``x`` clashes with an existing symbol, underscores will
+        be preppended to the name to make it unique:
 
         >>> A = Matrix([[1, 2], [x, 0]])
-        >>> A.charpoly().as_expr()
-        _lambda**2 - _lambda - 2*x
         >>> A.charpoly(x).as_expr()
-        x**2 - 3*x
+        _x**2 - _x - 2*x
+
+        Whether you pass a symbol or not, the generator can be obtained
+        with the gen attribute since it may not be the same as the symbol
+        that was passed:
+
+        >>> A.charpoly(x).gen
+        _x
+        >>> A.charpoly(x).gen == x
+        False
 
         Notes
         =====
@@ -334,6 +345,7 @@ class MatrixDeterminant(MatrixCommon):
             raise NonSquareMatrixError()
 
         berk_vector = self._eval_berkowitz_vector()
+        x = _uniquely_named_symbol(x, berk_vector)
         return PurePoly([simplify(a) for a in berk_vector], x)
 
     def cofactor(self, i, j, method="berkowitz"):
@@ -715,7 +727,7 @@ class MatrixReductions(MatrixDeterminant):
         return mat
 
     def elementary_col_op(self, op="n->kn", col=None, k=None, col1=None, col2=None):
-        """Perfoms the elementary column operation `op`.
+        """Performs the elementary column operation `op`.
 
         `op` may be one of
 
@@ -745,7 +757,7 @@ class MatrixReductions(MatrixDeterminant):
             return self._eval_col_op_add_multiple_to_other_col(col, k, col2)
 
     def elementary_row_op(self, op="n->kn", row=None, k=None, row1=None, row2=None):
-        """Perfoms the elementary row operation `op`.
+        """Performs the elementary row operation `op`.
 
         `op` may be one of
 
@@ -1324,11 +1336,22 @@ class MatrixEigen(MatrixSubspaces):
         mat = self
         has_floats = any(v.has(Float) for v in self)
 
+        if has_floats:
+            try:
+                max_prec = max(term._prec for term in self._mat if isinstance(term, Float))
+            except ValueError:
+                # if no term in the matrix is explicitly a Float calling max()
+                # will throw a error so setting max_prec to default value of 53
+                max_prec = 53
+            # setting minimum max_dps to 15 to prevent loss of precision in
+            # matrix containing non evaluated expressions
+            max_dps = max(prec_to_dps(max_prec), 15)
+
         def restore_floats(*args):
             """If `has_floats` is `True`, cast all `args` as
             matrices of floats."""
             if has_floats:
-                args = [m.evalf(chop=chop) for m in args]
+                args = [m.evalf(prec=max_dps, chop=chop) for m in args]
             if len(args) == 1:
                 return args[0]
             return args
@@ -1551,7 +1574,23 @@ class MatrixCalculus(MatrixCommon):
         integrate
         limit
         """
-        return self.applyfunc(lambda x: x.diff(*args))
+        from sympy import Derivative
+        return Derivative(self, *args, evaluate=True)
+
+    def _eval_derivative(self, arg):
+        return self.applyfunc(lambda x: x.diff(arg))
+
+    def _accept_eval_derivative(self, s):
+        return s._visit_eval_derivative_array(self)
+
+    def _visit_eval_derivative_scalar(self, base):
+        # Types are (base: scalar, self: matrix)
+        return self.applyfunc(lambda x: base.diff(x))
+
+    def _visit_eval_derivative_array(self, base):
+        # Types are (base: array/matrix, self: matrix)
+        from sympy import derive_by_array
+        return derive_by_array(base, self)
 
     def integrate(self, *args):
         """Integrate each element of the matrix.  ``args`` will
@@ -2241,11 +2280,16 @@ class MatrixBase(MatrixDeprecated,
         return self._new(self.rows, self.cols, self._mat)
 
     def cross(self, b):
-        """Return the cross product of `self` and `b` relaxing the condition
+        r"""
+        Return the cross product of ``self`` and ``b`` relaxing the condition
         of compatible dimensions: if each has 3 elements, a matrix of the
-        same type and shape as `self` will be returned. If `b` has the same
-        shape as `self` then common identities for the cross product (like
-        `a x b = - b x a`) will hold.
+        same type and shape as ``self`` will be returned. If ``b`` has the same
+        shape as ``self`` then common identities for the cross product (like
+        `a \times b = - b \times a`) will hold.
+
+        Parameters
+        ==========
+            b : 3x1 or 1x3 Matrix
 
         See Also
         ========
@@ -2496,7 +2540,7 @@ class MatrixBase(MatrixDeprecated,
 
         freevar : List
             If the system is underdetermined (e.g. A has more columns than
-            rows), infinite solutions are possible, in terms of an arbitrary
+            rows), infinite solutions are possible, in terms of arbitrary
             values of free variables. Then the index of the free variables
             in the solutions (column Matrix) will be returned by freevar, if
             the flag `freevar` is set to `True`.
@@ -2510,7 +2554,7 @@ class MatrixBase(MatrixDeprecated,
 
         params : Matrix
             If the system is underdetermined (e.g. A has more columns than
-            rows), infinite solutions are possible, in terms of an arbitrary
+            rows), infinite solutions are possible, in terms of arbitrary
             parameters. These arbitrary parameters are returned as params
             Matrix.
 
@@ -2523,14 +2567,14 @@ class MatrixBase(MatrixDeprecated,
         >>> sol, params = A.gauss_jordan_solve(b)
         >>> sol
         Matrix([
-        [-2*_tau0 - 3*_tau1 + 2],
-        [                 _tau0],
-        [           2*_tau1 + 5],
-        [                 _tau1]])
+        [-2*tau0 - 3*tau1 + 2],
+        [                 tau0],
+        [           2*tau1 + 5],
+        [                 tau1]])
         >>> params
         Matrix([
-        [_tau0],
-        [_tau1]])
+        [tau0],
+        [tau1]])
 
         >>> A = Matrix([[1, 2, 3], [4, 5, 6], [7, 8, 10]])
         >>> b = Matrix([3, 6, 9])
@@ -2591,9 +2635,11 @@ class MatrixBase(MatrixDeprecated,
                          len(pivots):]  # non-pivots columns are free variables
 
         # Free parameters
-        dummygen = numbered_symbols("tau", Dummy)
-        tau = Matrix([next(dummygen) for k in range(col - rank)]).reshape(
-            col - rank, 1)
+        # what are current unnumbered free symbol names?
+        name = _uniquely_named_symbol('tau', aug,
+            compare=lambda i: str(i).rstrip('1234567890')).name
+        gen = numbered_symbols(name)
+        tau = Matrix([next(gen) for k in range(col - rank)]).reshape(col - rank, 1)
 
         # Full parametric solution
         V = A[:rank, rank:]
@@ -2803,8 +2849,9 @@ class MatrixBase(MatrixDeprecated,
         if not self.is_square:
             raise NonSquareMatrixError(
                 "Nilpotency is valid only for square matrices")
-        x = Dummy('x')
-        if self.charpoly(x).args[0] == x ** self.rows:
+        x = _uniquely_named_symbol('x', self)
+        p = self.charpoly(x)
+        if p.args[0] == x ** self.rows:
             return True
         return False
 
@@ -3056,11 +3103,11 @@ class MatrixBase(MatrixDeprecated,
         lu[i ,j] = U[i, j] whenever i <= j.
         The output matrix can be visualized as:
 
-        Matrix([
-            [u, u, u, u],
-            [l, u, u, u],
-            [l, l, u, u],
-            [l, l, l, u]])
+            Matrix([
+                [u, u, u, u],
+                [l, u, u, u],
+                [l, l, u, u],
+                [l, l, l, u]])
 
         where l represents a subdiagonal entry of the L factor, and u
         represents an entry from the upper triangular entry of the U
@@ -3068,8 +3115,8 @@ class MatrixBase(MatrixDeprecated,
 
         perm is a list row swap index pairs such that if A is the original
         matrix, then A = (L*U).permuteBkwd(perm), and the row permutation
-        matrix P such that P*A = L*U can be computed by
-        soP=eye(A.row).permuteFwd(perm).
+        matrix P such that ``P*A = L*U`` can be computed by
+        ``P=eye(A.row).permuteFwd(perm)``.
 
         The keyword argument rankcheck determines if this function raises a
         ValueError when passed a matrix whose rank is strictly less than
@@ -3097,7 +3144,7 @@ class MatrixBase(MatrixDeprecated,
         If no such candidate exists, then each candidate pivot is simplified
         if simpfunc is not None.
         The search is repeated, with the difference that a candidate may be
-        the pivot if `iszerofunc()` cannot guarantee that it is nonzero.
+        the pivot if ``iszerofunc()`` cannot guarantee that it is nonzero.
         In the second search the pivot is the first candidate that
         iszerofunc can guarantee is nonzero.
         If no such candidate exists, then the pivot is the first candidate
@@ -3105,9 +3152,9 @@ class MatrixBase(MatrixDeprecated,
         If no such candidate exists, then the search is repeated in the next
         column to the right.
         The pivot search algorithm differs from the one in `rref()`, which
-        relies on `_find_reasonable_pivot()`.
-        Future versions of `LUdecomposition_simple()` may use
-        `_find_reasonable_pivot()`.
+        relies on ``_find_reasonable_pivot()``.
+        Future versions of ``LUdecomposition_simple()`` may use
+        ``_find_reasonable_pivot()``.
 
         See Also
         ========
@@ -3357,9 +3404,9 @@ class MatrixBase(MatrixDeprecated,
         =====  ============================  ==========================
         None   Frobenius norm                2-norm
         'fro'  Frobenius norm                - does not exist
-        inf    --                            max(abs(x))
+        inf    maximum row sum               max(abs(x))
         -inf   --                            min(abs(x))
-        1      --                            as below
+        1      maximum column sum            as below
         -1     --                            as below
         2      2-norm (largest sing. value)  as below
         -2     smallest singular value       as below
@@ -3377,11 +3424,15 @@ class MatrixBase(MatrixDeprecated,
         >>> v.norm(10)
         (sin(x)**10 + cos(x)**10)**(1/10)
         >>> A = Matrix([[1, 1], [1, 1]])
-        >>> A.norm(2)# Spectral norm (max of |Ax|/|x| under 2-vector-norm)
+        >>> A.norm(1) # maximum sum of absolute values of A is 2
+        2
+        >>> A.norm(2) # Spectral norm (max of |Ax|/|x| under 2-vector-norm)
         2
         >>> A.norm(-2) # Inverse spectral norm (smallest singular value)
         0
         >>> A.norm() # Frobenius Norm
+        2
+        >>> A.norm(oo) # Infinity Norm
         2
         >>> Matrix([1, -2]).norm(oo)
         2
@@ -3417,13 +3468,21 @@ class MatrixBase(MatrixDeprecated,
 
         # Matrix Norms
         else:
-            if ord == 2:  # Spectral Norm
+            if ord == 1:  # Maximum column sum
+                m = self.applyfunc(abs)
+                return Max(*[sum(m.col(i)) for i in range(m.cols)])
+
+            elif ord == 2:  # Spectral Norm
                 # Maximum singular value
                 return Max(*self.singular_values())
 
             elif ord == -2:
                 # Minimum singular value
                 return Min(*self.singular_values())
+
+            elif ord == S.Infinity:   # Infinity Norm - Maximum row sum
+                m = self.applyfunc(abs)
+                return Max(*[sum(m.row(i)) for i in range(m.rows)])
 
             elif (ord is None or isinstance(ord,
                                             string_types) and ord.lower() in
@@ -3991,7 +4050,7 @@ def classof(A, B):
             return A.__class__
         else:
             return B.__class__
-    except Exception:
+    except AttributeError:
         pass
     try:
         import numpy
@@ -3999,7 +4058,7 @@ def classof(A, B):
             return B.__class__
         if isinstance(B, numpy.ndarray):
             return A.__class__
-    except Exception:
+    except (AttributeError, ImportError):
         pass
     raise TypeError("Incompatible classes %s, %s" % (A.__class__, B.__class__))
 
@@ -4201,135 +4260,3 @@ def _find_reasonable_pivot_naive(col, iszerofunc=_iszero, simpfunc=None):
                 return i, tmp_col_val, False, newly_determined
 
     return indeterminates[0][0], indeterminates[0][1], True, newly_determined
-
-class _MinimalMatrix(object):
-    """Class providing the minimum functionality
-    for a matrix-like object and implementing every method
-    required for a `MatrixRequired`.  This class does not have everything
-    needed to become a full-fledged sympy object, but it will satisfy the
-    requirements of anything inheriting from `MatrixRequired`.  If you wish
-    to make a specialized matrix type, make sure to implement these
-    methods and properties with the exception of `__init__` and `__repr__`
-    which are included for convenience."""
-
-    is_MatrixLike = True
-    _sympify = staticmethod(sympify)
-    _class_priority = 3
-
-    is_Matrix = True
-    is_MatrixExpr = False
-
-    @classmethod
-    def _new(cls, *args, **kwargs):
-        return cls(*args, **kwargs)
-
-    def __init__(self, rows, cols=None, mat=None):
-        if isinstance(mat, FunctionType):
-            # if we passed in a function, use that to populate the indices
-            mat = list(mat(i, j) for i in range(rows) for j in range(cols))
-        try:
-            if cols is None and mat is None:
-                mat = rows
-            rows, cols = mat.shape
-        except AttributeError:
-            pass
-        try:
-            # if we passed in a list of lists, flatten it and set the size
-            if cols is None and mat is None:
-                mat = rows
-            cols = len(mat[0])
-            rows = len(mat)
-            mat = [x for l in mat for x in l]
-        except (IndexError, TypeError):
-            pass
-        self.mat = tuple(self._sympify(x) for x in mat)
-        self.rows, self.cols = rows, cols
-        if self.rows is None or self.cols is None:
-            raise NotImplementedError("Cannot initialize matrix with given parameters")
-
-    def __getitem__(self, key):
-        def _normalize_slices(row_slice, col_slice):
-            """Ensure that row_slice and col_slice don't have
-            `None` in their arguments.  Any integers are converted
-            to slices of length 1"""
-            if not isinstance(row_slice, slice):
-                row_slice = slice(row_slice, row_slice + 1, None)
-            row_slice = slice(*row_slice.indices(self.rows))
-
-            if not isinstance(col_slice, slice):
-                col_slice = slice(col_slice, col_slice + 1, None)
-            col_slice = slice(*col_slice.indices(self.cols))
-
-            return (row_slice, col_slice)
-
-        def _coord_to_index(i, j):
-            """Return the index in _mat corresponding
-            to the (i,j) position in the matrix. """
-            return i * self.cols + j
-
-        if isinstance(key, tuple):
-            i, j = key
-            if isinstance(i, slice) or isinstance(j, slice):
-                # if the coordinates are not slices, make them so
-                # and expand the slices so they don't contain `None`
-                i, j = _normalize_slices(i, j)
-
-                rowsList, colsList = list(range(self.rows))[i], \
-                                     list(range(self.cols))[j]
-                indices = (i * self.cols + j for i in rowsList for j in
-                           colsList)
-                return self._new(len(rowsList), len(colsList),
-                                 list(self.mat[i] for i in indices))
-
-            # if the key is a tuple of ints, change
-            # it to an array index
-            key = _coord_to_index(i, j)
-        return self.mat[key]
-
-    def __eq__(self, other):
-        return self.shape == other.shape and list(self) == list(other)
-
-    def __len__(self):
-        return self.rows*self.cols
-
-    def __repr__(self):
-        return "_MinimalMatrix({}, {}, {})".format(self.rows, self.cols,
-                                                   self.mat)
-
-    @property
-    def shape(self):
-        return (self.rows, self.cols)
-
-
-class _MatrixWrapper(object):
-    """Wrapper class providing the minimum functionality
-    for a matrix-like object: .rows, .cols, .shape, indexability,
-    and iterability.  CommonMatrix math operations should work
-    on matrix-like objects.  For example, wrapping a numpy
-    matrix in a MatrixWrapper allows it to be passed to CommonMatrix.
-    """
-    is_MatrixLike = True
-
-    def __init__(self, mat, shape=None):
-        self.mat = mat
-        self.rows, self.cols = mat.shape if shape is None else shape
-
-    def __getattr__(self, attr):
-        """Most attribute access is passed straight through
-        to the stored matrix"""
-        return getattr(self.mat, attr)
-
-    def __getitem__(self, key):
-        return self.mat.__getitem__(key)
-
-
-def _matrixify(mat):
-    """If `mat` is a Matrix or is matrix-like,
-    return a Matrix or MatrixWrapper object.  Otherwise
-    `mat` is passed through without modification."""
-    if getattr(mat, 'is_Matrix', False):
-        return mat
-    if hasattr(mat, 'shape'):
-        if len(mat.shape) == 2:
-            return _MatrixWrapper(mat)
-    return mat

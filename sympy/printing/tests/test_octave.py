@@ -2,7 +2,7 @@ from sympy.core import (S, pi, oo, symbols, Function, Rational, Integer,
                         Tuple, Symbol)
 from sympy.core import EulerGamma, GoldenRatio, Catalan, Lambda
 from sympy.functions import (Piecewise, sqrt, ceiling, exp, sin, cos, LambertW,
-                             sinc)
+                             sinc, Max, Min, arg, im, re)
 from sympy.utilities.pytest import raises
 from sympy.utilities.lambdify import implemented_function
 from sympy.matrices import (eye, Matrix, MatrixSymbol, Identity,
@@ -38,6 +38,12 @@ def test_Function():
     assert mcode(sin(x) ** cos(x)) == "sin(x).^cos(x)"
     assert mcode(abs(x)) == "abs(x)"
     assert mcode(ceiling(x)) == "ceil(x)"
+    assert mcode(arg(x)) == "angle(x)"
+    assert mcode(im(x)) == "imag(x)"
+    assert mcode(re(x)) == "real(x)"
+    assert mcode(Max(x, y) + Min(x, y)) == "max(x, y) + min(x, y)"
+    assert mcode(Max(x, y, z)) == "max(x, max(y, z))"
+    assert mcode(Min(x, y, z)) == "min(x, min(y, z))"
 
 
 def test_Pow():
@@ -92,7 +98,7 @@ def test_mix_number_mult_symbols():
     assert mcode(x/y/z) == "x./(y.*z)"
     assert mcode((x+y)/z) == "(x + y)./z"
     assert mcode((x+y)/(z+x)) == "(x + y)./(x + z)"
-    assert mcode((x+y)/EulerGamma) == "(x + y)/0.5772156649015329"
+    assert mcode((x+y)/EulerGamma) == "(x + y)/%s" % EulerGamma.evalf(17)
     assert mcode(x/3/pi) == "x/(3*pi)"
     assert mcode(S(3)/5*x*y/pi) == "3*x.*y/(5*pi)"
 
@@ -112,6 +118,7 @@ def test_imag():
     assert mcode(5*I) == "5i"
     assert mcode((S(3)/2)*I) == "3*1i/2"
     assert mcode(3+4*I) == "3 + 4i"
+    assert mcode(sqrt(3)*I) == "sqrt(3)*1i"
 
 
 def test_constants():
@@ -126,8 +133,8 @@ def test_constants():
 
 def test_constants_other():
     assert mcode(2*GoldenRatio) == "2*(1+sqrt(5))/2"
-    assert mcode(2*Catalan) == "2*0.915965594177219"
-    assert mcode(2*EulerGamma) == "2*0.5772156649015329"
+    assert mcode(2*Catalan) == "2*%s" % Catalan.evalf(17)
+    assert mcode(2*EulerGamma) == "2*%s" % EulerGamma.evalf(17)
 
 
 def test_boolean():
@@ -208,9 +215,9 @@ def test_containers():
 def test_octave_noninline():
     source = mcode((x+y)/Catalan, assign_to='me', inline=False)
     expected = (
-        "Catalan = 0.915965594177219;\n"
+        "Catalan = %s;\n"
         "me = (x + y)/Catalan;"
-    )
+    ) % Catalan.evalf(17)
     assert source == expected
 
 
@@ -387,4 +394,4 @@ def test_MatrixElement_printing():
     assert mcode(3 * A[0, 0]) == "3*A(1, 1)"
 
     F = C[0, 0].subs(C, A - B)
-    assert mcode(F) == "((-1)*B + A)(1, 1)"
+    assert mcode(F) == "(-B + A)(1, 1)"

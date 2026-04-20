@@ -207,9 +207,9 @@ def test_containers():
 def test_julia_noninline():
     source = julia_code((x+y)/Catalan, assign_to='me', inline=False)
     expected = (
-        "const Catalan = 0.915965594177219\n"
+        "const Catalan = %s\n"
         "me = (x + y)/Catalan"
-    )
+    ) % Catalan.evalf(17)
     assert source == expected
 
 
@@ -374,4 +374,4 @@ def test_MatrixElement_printing():
     assert(julia_code(3 * A[0, 0]) == "3*A[1,1]")
 
     F = C[0, 0].subs(C, A - B)
-    assert(julia_code(F) == "((-1)*B + A)[1,1]")
+    assert(julia_code(F) == "(-B + A)[1,1]")
