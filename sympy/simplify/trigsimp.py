@@ -10,7 +10,7 @@ from sympy.core.numbers import I, Integer
 from sympy.core.function import count_ops, _mexpand
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from sympy.functions.elementary.hyperbolic import HyperbolicFunction
-from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth
+from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth, sinc
 
 from sympy.strategies.core import identity
 from sympy.strategies.tree import greedy
@@ -425,6 +425,62 @@ def trigsimp_groebner(expr, hints=[], quick=False, order="grlex",
 _trigs = (TrigonometricFunction, HyperbolicFunction)
 
 
+def _exp_to_trig(expr):
+    """
+    Convert exponential expressions to trigonometric forms.
+    
+    Recognizes patterns like:
+    - (exp(I*x) - exp(-I*x))/(2*I) -> sin(x)
+    - (exp(I*x) + exp(-I*x))/2 -> cos(x)
+    - (exp(I*x) - exp(-I*x))/(2*I*x) -> sinc(x)
+    """
+    from sympy import Wild, collect, simplify, factor
+    from sympy.core.numbers import I
+    
+    if not expr.has(exp):
+        return expr
+        
+    # Define wildcards
+    a = Wild('a')
+    x = Wild('x')
+    
+    # Pattern for (exp(I*a*x) - exp(-I*a*x))/(2*I) -> sin(a*x)
+    pattern1 = (exp(I*a*x) - exp(-I*a*x))/(2*I)
+    match1 = expr.match(pattern1)
+    if match1:
+        return sin(match1[a]*match1[x])
+    
+    # Pattern for (exp(I*a*x) + exp(-I*a*x))/2 -> cos(a*x)
+    pattern2 = (exp(I*a*x) + exp(-I*a*x))/2
+    match2 = expr.match(pattern2)
+    if match2:
+        return cos(match2[a]*match2[x])
+    
+    # Pattern for (exp(I*a*x) - exp(-I*a*x))/(2*I*x) -> sinc(a*x)
+    pattern3 = (exp(I*a*x) - exp(-I*a*x))/(2*I*x)
+    match3 = expr.match(pattern3)
+    if match3:
+        return sinc(match3[a]*match3[x])
+    
+    # Pattern for (exp(I*x) - exp(-I*x))/(2*I*a*x) -> sinc(x)/a
+    pattern4 = (exp(I*x) - exp(-I*x))/(2*I*a*x)
+    match4 = expr.match(pattern4)
+    if match4:
+        return sinc(match4[x])/match4[a]
+    
+    # Handle more complex expressions by applying to subexpressions
+    if expr.is_Add:
+        return Add(*[_exp_to_trig(arg) for arg in expr.args])
+    elif expr.is_Mul:
+        return Mul(*[_exp_to_trig(arg) for arg in expr.args])
+    elif expr.is_Pow:
+        return expr.func(_exp_to_trig(expr.base), expr.exp)
+    elif hasattr(expr, 'args') and expr.args:
+        return expr.func(*[_exp_to_trig(arg) for arg in expr.args])
+    
+    return expr
+
+
 def trigsimp(expr, **opts):
     """
     reduces expression by using known trig identities
@@ -513,12 +569,9 @@ def trigsimp(expr, **opts):
     return trigsimpfunc(expr)
 
 
-def exptrigsimp(expr, simplify=True):
+def exptrigsimp(expr):
     """
     Simplifies exponential / trigonometric / hyperbolic functions.
-    When ``simplify`` is True (default) the expression obtained after the
-    simplification step will be then be passed through simplify to
-    precondition it so the final transformations will be applied.
 
     Examples
     ========
@@ -544,35 +597,53 @@ def exptrigsimp(expr, simplify=True):
         return min(*choices, key=count_ops)
     newexpr = bottom_up(expr, exp_trig)
 
-    if simplify:
-        newexpr = newexpr.simplify()
+    def f(rv):
+        if not rv.is_Mul:
+            return rv
+        rvd = rv.as_powers_dict()
+        newd = rvd.copy()
 
-    # conversion from exp to hyperbolic
-    ex = newexpr.atoms(exp, S.Exp1)
-    ex = [ei for ei in ex if 1/ei not in ex]
-    ## sinh and cosh
-    for ei in ex:
-        e2 = ei**-2
-        if e2 in ex:
-            a = e2.args[0]/2 if not e2 is S.Exp1 else S.Half
-            newexpr = newexpr.subs((e2 + 1)*ei, 2*cosh(a))
-            newexpr = newexpr.subs((e2 - 1)*ei, 2*sinh(a))
-    ## exp ratios to tan and tanh
-    for ei in ex:
-        n, d = ei - 1, ei + 1
-        et = n/d
-        etinv = d/n  # not 1/et or else recursion errors arise
-        a = ei.args[0] if ei.func is exp else S.One
-        if a.is_Mul or a is S.ImaginaryUnit:
-            c = a.as_coefficient(I)
-            if c:
-                t = S.ImaginaryUnit*tan(c/2)
-                newexpr = newexpr.subs(etinv, 1/t)
-                newexpr = newexpr.subs(et, t)
-                continue
-        t = tanh(a/2)
-        newexpr = newexpr.subs(etinv, 1/t)
-        newexpr = newexpr.subs(et, t)
+        def signlog(expr, sign=1):
+            if expr is S.Exp1:
+                return sign, 1
+            elif isinstance(expr, exp):
+                return sign, expr.args[0]
+            elif sign == 1:
+                return signlog(-expr, sign=-1)
+            else:
+                return None, None
+
+        ee = rvd[S.Exp1]
+        for k in rvd:
+            if k.is_Add and len(k.args) == 2:
+                # k == c*(1 + sign*E**x)
+                c = k.args[0]
+                sign, x = signlog(k.args[1]/c)
+                if not x:
+                    continue
+                m = rvd[k]
+                newd[k] -= m
+                if ee == -x*m/2:
+                    # sinh and cosh
+                    newd[S.Exp1] -= ee
+                    ee = 0
+                    if sign == 1:
+                        newd[2*c*cosh(x/2)] += m
+                    else:
+                        newd[-2*c*sinh(x/2)] += m
+                elif newd[1 - sign*S.Exp1**x] == -m:
+                    # tanh
+                    del newd[1 - sign*S.Exp1**x]
+                    if sign == 1:
+                        newd[-c/tanh(x/2)] += m
+                    else:
+                        newd[-c*tanh(x/2)] += m
+                else:
+                    newd[1 + sign*S.Exp1**x] += m
+                    newd[c] += m
+
+        return Mul(*[k**newd[k] for k in newd])
+    newexpr = bottom_up(newexpr, f)
 
     # sin/cos and sinh/cosh ratios to tan and tanh, respectively
     if newexpr.has(HyperbolicFunction):
