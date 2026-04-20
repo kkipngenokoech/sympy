@@ -163,6 +163,13 @@ class C89CodePrinter(CodePrinter):
             return '%spow(%s, %s)' % (self._ns, self._print(expr.base),
                                    self._print(expr.exp))
 
+    def _print_sinc(self, expr):
+        return "((%s) ? sin(%s)/(%s) : 1)" % (
+            self._print(expr.args[0]),
+            self._print(expr.args[0]),
+            self._print(expr.args[0])
+        )
+
     def _print_Rational(self, expr):
         p, q = int(expr.p), int(expr.q)
         return '%d.0L/%d.0L' % (p, q)
