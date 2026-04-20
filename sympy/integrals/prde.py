@@ -16,22 +16,17 @@ each function for more information.
 """
 from __future__ import print_function, division
 
-from sympy.core import Dummy, ilcm, Add, Mul, Pow, S, oo
-
-from sympy.matrices import zeros, eye
-from sympy.polys.polymatrix import PolyMatrix as Matrix
-
-from sympy.solvers import solve
-
-from sympy.polys import Poly, lcm, cancel, sqf_list
-
-from sympy.integrals.risch import (gcdex_diophantine, frac_in, derivation,
-    NonElementaryIntegralException, residue_reduce, splitfactor,
-    residue_reduce_derivation, DecrementLevel, recognize_log_derivative)
+from sympy.core import Dummy, ilcm, Add, Mul, Pow, S
+from sympy.core.compatibility import reduce
 from sympy.integrals.rde import (order_at, order_at_oo, weak_normalizer,
-    bound_degree, spde, solve_poly_rde)
-from sympy.core.compatibility import reduce, range
-from sympy.utilities.misc import debug
+    bound_degree)
+from sympy.integrals.risch import (gcdex_diophantine, frac_in, derivation,
+    residue_reduce, splitfactor, residue_reduce_derivation, DecrementLevel,
+    recognize_log_derivative)
+from sympy.matrices import zeros, eye
+from sympy.polys import Poly, lcm, cancel, sqf_list
+from sympy.polys.polymatrix import PolyMatrix as Matrix
+from sympy.solvers import solve
 
 
 def prde_normal_denom(fa, fd, G, DE):
@@ -132,8 +127,8 @@ def prde_special_denom(a, ba, bd, G, DE, case='auto'):
                 etaa, etad = frac_in(dcoeff, DE.t)
                 A = parametric_log_deriv(alphaa, alphad, etaa, etad, DE)
                 if A is not None:
-                    a, m, z = A
-                    if a == 1:
+                    Q, m, z = A
+                    if Q == 1:
                         n = min(n, m)
 
         elif case == 'tan':
@@ -143,13 +138,13 @@ def prde_special_denom(a, ba, bd, G, DE, case='auto'):
                 betaa, alphaa, alphad =  real_imag(ba, bd*a, DE.t)
                 betad = alphad
                 etaa, etad = frac_in(dcoeff, DE.t)
-                if recognize_log_derivative(2*betaa, betad, DE):
+                if recognize_log_derivative(Poly(2, DE.t)*betaa, betad, DE):
                     A = parametric_log_deriv(alphaa, alphad, etaa, etad, DE)
                     B = parametric_log_deriv(betaa, betad, etaa, etad, DE)
                     if A is not None and B is not None:
-                        a, s, z = A
+                        Q, s, z = A
                         # TODO: Add test
-                        if a == 1:
+                        if Q == 1:
                             n = min(n, s/2)
 
     N = max(0, -nb)
@@ -410,7 +405,7 @@ def prde_no_cancel_b_small(b, Q, n, DE):
         # y = d1*f1 for f1 = 1 and any d1 in Const(k) = k.
 
         f = [Poly(1, t, field=True)]  # r = 1
-        B = Matrix([[qi.TC() for qi in Q] + [S(0)]])
+        B = Matrix([[qi.TC() for qi in Q] + [S.Zero]])
         # The condition for solvability is
         # B*Matrix([c1, ..., cm, d1]) == 0
         # There are no constraints on d1.
@@ -456,7 +451,7 @@ def prde_cancel_liouvillian(b, Q, n, DE):
     for i in range(n, -1, -1):
         if DE.case == 'exp': # this re-checking can be avoided
             with DecrementLevel(DE):
-                ba, bd = frac_in(b + i*derivation(DE.t, DE)/DE.t,
+                ba, bd = frac_in(b + (i*(derivation(DE.t, DE)/DE.t)).as_poly(b.gens),
                                 DE.t, field=True)
         with DecrementLevel(DE):
             Qy = [frac_in(q.nth(i), DE.t, field=True) for q in Q]
@@ -475,7 +470,7 @@ def prde_cancel_liouvillian(b, Q, n, DE):
 
         # from eq. on top of p.238 (unnumbered)
         for j in range(ri):
-            hji = fi[j]*DE.t**i
+            hji = fi[j] * (DE.t**i).as_poly(fi[j].gens)
             hi[j] = hji
             # building up Sum(djn*(D(fjn*t^n) - b*fjnt^n))
             Fi[j] = -(derivation(hji, DE) - b*hji)
@@ -543,7 +538,7 @@ def param_poly_rischDE(a, b, q, n, DE):
 
     # Iterate SPDE as long as possible cumulating coefficient
     # and terms for the recovery of original solutions.
-    alpha, beta = 1, [0]*m
+    alpha, beta = a.one, [a.zero]*m
     while n >= 0:  # and a, b relatively prime
         a, b, q, r, n = prde_spde(a, b, q, n, DE)
         beta = [betai + alpha*ri for betai, ri in zip(beta, r)]
@@ -781,7 +776,7 @@ def limited_integrate_reduce(fa, fd, G, DE):
     if DE.case in ['base', 'primitive', 'exp', 'tan']:
         hs = reduce(lambda i, j: i.lcm(j), (ds,) + Es)  # lcm(ds, es1, ..., esm)
         a = hn*hs
-        b = -derivation(hn, DE) - (hn*derivation(hs, DE)).quo(hs)
+        b -= (hn*derivation(hs, DE)).quo(hs)
         mu = min(order_at_oo(fa, fd, DE.t), min([order_at_oo(ga, gd, DE.t) for
             ga, gd in G]))
         # So far, all the above are also nonlinear or Liouvillian, but if this
@@ -801,7 +796,7 @@ def limited_integrate(fa, fd, G, DE):
     Solves the limited integration problem:  f = Dv + Sum(ci*wi, (i, 1, n))
     """
     fa, fd = fa*Poly(1/fd.LC(), DE.t), fd.monic()
-    # interpretting limited integration problem as a
+    # interpreting limited integration problem as a
     # parametric Risch DE problem
     Fa = Poly(0, DE.t)
     Fd = Poly(1, DE.t)
@@ -858,20 +853,18 @@ def parametric_log_deriv_heu(fa, fd, wa, wd, DE, c1=None):
             # deg(q) > B, no solution for c.
             return None
 
-        N, M = s[c1].as_numer_denom()  # N and M are integers
-        N, M = Poly(N, DE.t), Poly(M, DE.t)
+        M, N = s[c1].as_numer_denom()
+        M_poly = M.as_poly(q.gens)
+        N_poly = N.as_poly(q.gens)
 
-        nfmwa = N*fa*wd - M*wa*fd
+        nfmwa = N_poly*fa*wd - M_poly*wa*fd
         nfmwd = fd*wd
-        Qv = is_log_deriv_k_t_radical_in_field(N*fa*wd - M*wa*fd, fd*wd, DE,
-            'auto')
+        Qv = is_log_deriv_k_t_radical_in_field(nfmwa, nfmwd, DE, 'auto')
         if Qv is None:
             # (N*f - M*w) is not the logarithmic derivative of a k(t)-radical.
             return None
 
-        Q, e, v = Qv
-        if e != 1:
-            return None
+        Q, v = Qv
 
         if Q.is_zero or v.is_zero:
             return None
@@ -930,7 +923,7 @@ def parametric_log_deriv(fa, fd, wa, wd, DE):
 
 
 def is_deriv_k(fa, fd, DE):
-    """
+    r"""
     Checks if Df/f is the derivative of an element of k(t).
 
     a in k(t) is the derivative of an element of k(t) if there exists b in k(t)
@@ -980,9 +973,14 @@ def is_deriv_k(fa, fd, DE):
     of the logarithmic terms in L_args.
 
     To handle the case where we are given Df/f, not f, use is_deriv_k_in_field().
+
+    See also
+    ========
+    is_log_deriv_k_t_radical_in_field, is_log_deriv_k_t_radical
+
     """
     # Compute Df/f
-    dfa, dfd = fd*(fd*derivation(fa, DE) - fa*derivation(fd, DE)), fd**2*fa
+    dfa, dfd = (fd*derivation(fa, DE) - fa*derivation(fd, DE)), fd*fa
     dfa, dfd = dfa.cancel(dfd, include=True)
 
     # Our assumption here is that each monomial is recursively transcendental
@@ -1039,7 +1037,7 @@ def is_deriv_k(fa, fd, DE):
 
 
 def is_log_deriv_k_t_radical(fa, fd, DE, Df=True):
-    """
+    r"""
     Checks if Df is the logarithmic derivative of a k(t)-radical.
 
     b in k(t) can be written as the logarithmic derivative of a k(t) radical if
@@ -1089,8 +1087,12 @@ def is_log_deriv_k_t_radical(fa, fd, DE, Df=True):
 
     To handle the case where we are given Df, not f, use
     is_log_deriv_k_t_radical_in_field().
+
+    See also
+    ========
+    is_log_deriv_k_t_radical_in_field, is_deriv_k
+
     """
-    H = []
     if Df:
         dfa, dfd = (fd*derivation(fa, DE) - fa*derivation(fd, DE)).cancel(fd**2,
             include=True)
@@ -1151,6 +1153,11 @@ def is_log_deriv_k_t_radical_in_field(fa, fd, DE, case='auto', z=None):
     """
     Checks if f can be written as the logarithmic derivative of a k(t)-radical.
 
+    It differs from is_log_deriv_k_t_radical(fa, fd, DE, Df=False)
+    for any given fa, fd, DE in that it finds the solution in the
+    given field not in some (possibly unspecified extension) and
+    "in_field" with the function name is used to indicate that.
+
     f in k(t) can be written as the logarithmic derivative of a k(t) radical if
     there exist n in ZZ and u in k(t) with n, u != 0 such that n*f == Du/u.
     Either returns (n, u) or None, which means that f cannot be written as the
@@ -1159,6 +1166,11 @@ def is_log_deriv_k_t_radical_in_field(fa, fd, DE, case='auto', z=None):
     case is one of {'primitive', 'exp', 'tan', 'auto'} for the primitive,
     hyperexponential, and hypertangent cases, respectively.  If case is 'auto',
     it will attempt to determine the type of the derivation automatically.
+
+    See also
+    ========
+    is_log_deriv_k_t_radical, is_deriv_k
+
     """
     fa, fd = fa.cancel(fd, include=True)
 
@@ -1235,7 +1247,7 @@ def is_log_deriv_k_t_radical_in_field(fa, fd, DE, case='auto', z=None):
             return None
         # Note: if residueterms = [], returns (1, 1)
         # f had better be 0 in that case.
-        n = reduce(ilcm, [i.as_numer_denom()[1] for _, i in residueterms], S(1))
+        n = reduce(ilcm, [i.as_numer_denom()[1] for _, i in residueterms], S.One)
         u = Mul(*[Pow(i, j*n) for i, j in residueterms])
         return (n, u)
 
@@ -1252,7 +1264,7 @@ def is_log_deriv_k_t_radical_in_field(fa, fd, DE, case='auto', z=None):
         "'base', 'auto'}, not %s" % case)
 
     common_denom = reduce(ilcm, [i.as_numer_denom()[1] for i in [j for _, j in
-        residueterms]] + [n], S(1))
+        residueterms]] + [n], S.One)
     residueterms = [(i, j*common_denom) for i, j in residueterms]
     m = common_denom//n
     if common_denom != n*m:  # Verify exact division
