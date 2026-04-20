@@ -8,7 +8,7 @@ Implementation in sympy.vector
 Scalar and vector fields
 ------------------------
 
-In :mod:`sympy.vector`, every ``CoordSysCartesian`` instance is assigned basis
+In :mod:`sympy.vector`, every ``CoordSys3D`` instance is assigned basis
 vectors corresponding to the :math:`X`, :math:`Y` and
 :math:`Z` axes. These can be accessed using the properties
 named ``i``, ``j`` and ``k`` respectively. Hence, to define a vector
@@ -254,6 +254,22 @@ Or by using the dedicated function
   >>> from sympy.vector import directional_derivative
   >>> directional_derivative(C.x*C.y*C.z, 3*C.i + 4*C.j + C.k)
   C.x*C.y + 4*C.x*C.z + 3*C.y*C.z
+
+Field operator in orthogonal curvilinear coordinate system
+==========================================================
+
+``vector`` package supports calculation in different kind of orthogonal
+curvilinear coordinate system. To do that, scaling factor (also known as
+Lame coefficients) are used to express ``curl``, ``divergence`` or ``gradient``
+in desired type of coordinate system.
+
+For example if we want to calculate ``gradient`` in cylindrical coordinate
+system all we need to do is to create proper coordinate system
+
+  >>> from sympy.vector import CoordSys3D
+  >>> c = CoordSys3D('c', transformation='cylindrical', variable_names=("r", "theta", "z"))
+  >>> gradient(c.r*c.theta*c.z)
+      c.theta*c.z*c.i + c.z*c.j + c.r*c.theta*c.k
 
 Conservative and Solenoidal fields
 ==================================

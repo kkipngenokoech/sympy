@@ -1,27 +1,19 @@
 """Tests for noncommutative symbols and expressions."""
 
-from sympy import (
-    adjoint,
-    cancel,
-    collect,
-    combsimp,
-    conjugate,
-    cos,
-    expand,
-    factor,
-    posify,
-    radsimp,
-    ratsimp,
-    rcollect,
-    sin,
-    simplify,
-    symbols,
-    transpose,
-    trigsimp,
-    I,
-)
+from sympy.core.function import expand
+from sympy.core.numbers import I
+from sympy.core.symbol import symbols
+from sympy.functions.elementary.complexes import (adjoint, conjugate, transpose)
+from sympy.functions.elementary.trigonometric import (cos, sin)
+from sympy.polys.polytools import (cancel, factor)
+from sympy.simplify.combsimp import combsimp
+from sympy.simplify.gammasimp import gammasimp
+from sympy.simplify.radsimp import (collect, radsimp, rcollect)
+from sympy.simplify.ratsimp import ratsimp
+from sympy.simplify.simplify import (posify, simplify)
+from sympy.simplify.trigsimp import trigsimp
 from sympy.abc import x, y, z
-from sympy.utilities.pytest import XFAIL
+from sympy.testing.pytest import XFAIL
 
 A, B, C = symbols("A B C", commutative=False)
 X = symbols("X", commutative=False, hermitian=True)
@@ -63,6 +55,10 @@ def test_collect():
 
 def test_combsimp():
     assert combsimp(A*B - B*A) == A*B - B*A
+
+
+def test_gammasimp():
+    assert gammasimp(A*B - B*A) == A*B - B*A
 
 
 def test_conjugate():
