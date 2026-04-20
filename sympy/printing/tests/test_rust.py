@@ -1,15 +1,15 @@
 from sympy.core import (S, pi, oo, symbols, Rational, Integer,
-                        GoldenRatio, EulerGamma, Catalan, Lambda, Dummy, Eq)
+                        GoldenRatio, EulerGamma, Catalan, Lambda, Dummy,
+                        Eq, Ne, Le, Lt, Gt, Ge, Mod)
 from sympy.functions import (Piecewise, sin, cos, Abs, exp, ceiling, sqrt,
-                             gamma, sign)
+                             sign, floor)
 from sympy.logic import ITE
-from sympy.utilities.pytest import raises
-from sympy.printing.rust import RustCodePrinter
+from sympy.testing.pytest import raises
 from sympy.utilities.lambdify import implemented_function
 from sympy.tensor import IndexedBase, Idx
-from sympy.matrices import Matrix, MatrixSymbol
+from sympy.matrices import MatrixSymbol, SparseMatrix, Matrix
 
-from sympy import rust_code
+from sympy.printing.rust import rust_code
 
 x, y, z = symbols('x,y,z')
 
@@ -17,6 +17,15 @@ x, y, z = symbols('x,y,z')
 def test_Integer():
     assert rust_code(Integer(42)) == "42"
     assert rust_code(Integer(-56)) == "-56"
+
+
+def test_Relational():
+    assert rust_code(Eq(x, y)) == "x == y"
+    assert rust_code(Ne(x, y)) == "x != y"
+    assert rust_code(Le(x, y)) == "x <= y"
+    assert rust_code(Lt(x, y)) == "x < y"
+    assert rust_code(Gt(x, y)) == "x > y"
+    assert rust_code(Ge(x, y)) == "x >= y"
 
 
 def test_Rational():
@@ -41,12 +50,18 @@ def test_printmethod():
         def _rust_code(self, printer):
             return "%s.fabs()" % printer._print(self.args[0])
     assert rust_code(fabs(x)) == "x.fabs()"
+    a = MatrixSymbol("a", 1, 3)
+    assert rust_code(a[0,0]) == 'a[0]'
 
 
 def test_Functions():
     assert rust_code(sin(x) ** cos(x)) == "x.sin().powf(x.cos())"
     assert rust_code(abs(x)) == "x.abs()"
     assert rust_code(ceiling(x)) == "x.ceil()"
+    assert rust_code(floor(x)) == "x.floor()"
+
+    # Automatic rewrite
+    assert rust_code(Mod(x, 3)) == 'x - 3*((1_f64/3.0)*x).floor()'
 
 
 def test_Pow():
@@ -90,10 +105,10 @@ def test_constants():
 
 
 def test_constants_other():
-    assert rust_code(2*GoldenRatio) == "const GoldenRatio: f64 = 1.61803398874989;\n2*GoldenRatio"
+    assert rust_code(2*GoldenRatio) == "const GoldenRatio: f64 = %s;\n2*GoldenRatio" % GoldenRatio.evalf(17)
     assert rust_code(
-            2*Catalan) == "const Catalan: f64 = 0.915965594177219;\n2*Catalan"
-    assert rust_code(2*EulerGamma) == "const EulerGamma: f64 = 0.577215664901533;\n2*EulerGamma"
+            2*Catalan) == "const Catalan: f64 = %s;\n2*Catalan" % Catalan.evalf(17)
+    assert rust_code(2*EulerGamma) == "const EulerGamma: f64 = %s;\n2*EulerGamma" % EulerGamma.evalf(17)
 
 
 def test_boolean():
@@ -182,18 +197,16 @@ def test_reserved_words():
 
 
 def test_ITE():
-    expr = ITE(x < 1, x, x + 2)
+    expr = ITE(x < 1, y, z)
     assert rust_code(expr) == (
             "if (x < 1) {\n"
-            "    x\n"
+            "    y\n"
             "} else {\n"
-            "    x + 2\n"
+            "    z\n"
             "}")
 
 
 def test_Indexed():
-    from sympy.tensor import IndexedBase, Idx
-    from sympy import symbols
     n, m, o = symbols('n m o', integer=True)
     i, j, k = Idx('i', n), Idx('j', m), Idx('k', o)
 
@@ -220,8 +233,6 @@ def test_dummy_loops():
 
 
 def test_loops():
-    from sympy.tensor import IndexedBase, Idx
-    from sympy import symbols
     m, n = symbols('m n', integer=True)
     A = IndexedBase('A')
     x = IndexedBase('x')
@@ -252,8 +263,6 @@ def test_loops():
 
 
 def test_loops_multiple_contractions():
-    from sympy.tensor import IndexedBase, Idx
-    from sympy import symbols
     n, m, o, p = symbols('n m o p', integer=True)
     a = IndexedBase('a')
     b = IndexedBase('b')
@@ -279,8 +288,6 @@ def test_loops_multiple_contractions():
 
 
 def test_loops_addfactor():
-    from sympy.tensor import IndexedBase, Idx
-    from sympy import symbols
     m, n, o, p = symbols('m n o p', integer=True)
     a = IndexedBase('a')
     b = IndexedBase('b')
@@ -318,7 +325,7 @@ def test_inline_function():
 
     g = implemented_function('g', Lambda(x, 2*x/Catalan))
     assert rust_code(g(x)) == (
-        "const Catalan: f64 = %s;\n2*x/Catalan" % Catalan.n())
+        "const Catalan: f64 = %s;\n2*x/Catalan" % Catalan.evalf(17))
 
     A = IndexedBase('A')
     i = Idx('i', symbols('n', integer=True))
@@ -339,3 +346,14 @@ def test_user_functions():
     assert rust_code(ceiling(x), user_functions=custom_functions) == "x.ceil()"
     assert rust_code(Abs(x), user_functions=custom_functions) == "fabs(x)"
     assert rust_code(Abs(n), user_functions=custom_functions) == "abs(n)"
+
+
+def test_matrix():
+    assert rust_code(Matrix([1, 2, 3])) == '[1, 2, 3]'
+    with raises(ValueError):
+        rust_code(Matrix([[1, 2, 3]]))
+
+
+def test_sparse_matrix():
+    # gh-15791
+    assert 'Not supported in Rust' in rust_code(SparseMatrix([[1, 2, 3]]))

@@ -1,17 +1,15 @@
 """Dense univariate polynomials with coefficients in Galois fields. """
 
-from __future__ import print_function, division
 
-from random import uniform
+from sympy.core.random import uniform
 from math import ceil as _ceil, sqrt as _sqrt
 
-from sympy.core.compatibility import SYMPY_INTS, range
 from sympy.core.mul import prod
-from sympy.polys.polyutils import _sort_factors
+from sympy.external.gmpy import SYMPY_INTS
 from sympy.polys.polyconfig import query
 from sympy.polys.polyerrors import ExactQuotientFailed
+from sympy.polys.polyutils import _sort_factors
 
-from sympy.ntheory import factorint
 
 def gf_crt(U, M, K=None):
     """
@@ -21,12 +19,14 @@ def gf_crt(U, M, K=None):
     co-prime integer moduli ``m_0,...,m_n``, returns an integer
     ``u``, such that ``u = u_i mod m_i`` for ``i = ``0,...,n``.
 
-    As an example consider a set of residues ``U = [49, 76, 65]``
+    Examples
+    ========
+
+    Consider a set of residues ``U = [49, 76, 65]``
     and a set of moduli ``M = [99, 97, 95]``. Then we have::
 
        >>> from sympy.polys.domains import ZZ
        >>> from sympy.polys.galoistools import gf_crt
-       >>> from sympy.ntheory.modular import solve_congruence
 
        >>> gf_crt([49, 76, 65], [99, 97, 95], ZZ)
        639985
@@ -312,7 +312,6 @@ def gf_from_int_poly(f, p):
     Examples
     ========
 
-    >>> from sympy.polys.domains import ZZ
     >>> from sympy.polys.galoistools import gf_from_int_poly
 
     >>> gf_from_int_poly([7, -2, 3], 5)
@@ -632,7 +631,7 @@ def gf_sub_mul(f, g, h, p, K):
 
 def gf_expand(F, p, K):
     """
-    Expand results of :func:`factor` in ``GF(p)[x]``.
+    Expand results of :func:`~.factor` in ``GF(p)[x]``.
 
     Examples
     ========
@@ -644,7 +643,7 @@ def gf_expand(F, p, K):
     [4, 3, 0, 3, 0, 1, 4, 1]
 
     """
-    if type(F) is tuple:
+    if isinstance(F, tuple):
         lc, F = F
     else:
         lc = K.one
@@ -682,8 +681,8 @@ def gf_div(f, g, p, K):
     References
     ==========
 
-    1. [Monagan93]_
-    2. [Gathen99]_
+    .. [1] [Monagan93]_
+    .. [2] [Gathen99]_
 
     """
     df = gf_degree(f)
@@ -921,7 +920,7 @@ def gf_frobenius_map(f, g, b, p, K):
 
     >>> from sympy.polys.domains import ZZ
     >>> from sympy.polys.galoistools import gf_frobenius_monomial_base, gf_frobenius_map
-    >>> f = ZZ.map([2, 1 , 0, 1])
+    >>> f = ZZ.map([2, 1, 0, 1])
     >>> g = ZZ.map([1, 0, 2, 1])
     >>> p = 5
     >>> b = gf_frobenius_monomial_base(g, p, ZZ)
@@ -978,7 +977,7 @@ def gf_pow_mod(f, n, g, p, K):
     References
     ==========
 
-    1. [Gathen99]_
+    .. [1] [Gathen99]_
 
     """
     if not n:
@@ -1103,7 +1102,7 @@ def gf_gcdex(f, g, p, K):
     References
     ==========
 
-    1. [Gathen99]_
+    .. [1] [Gathen99]_
 
     """
     if not (f or g):
@@ -1319,7 +1318,7 @@ def gf_trace_map(a, b, c, n, f, p, K):
     References
     ==========
 
-    1. [Gathen92]_
+    .. [1] [Gathen92]_
 
     """
     u = gf_compose_mod(a, b, f, p, K)
@@ -1465,6 +1464,8 @@ def gf_irred_p_rabin(f, p, K):
 
     x = [K.one, K.zero]
 
+    from sympy.ntheory import factorint
+
     indices = { n//d for d in factorint(n) }
 
     b = gf_frobenius_monomial_base(f, p, K)
@@ -1569,7 +1570,7 @@ def gf_sqf_list(f, p, K, all=False):
     of ``f`` and a square-free decomposition ``f_1**e_1 f_2**e_2 ... f_k**e_k``
     such that all ``f_i`` are monic polynomials and ``(f_i, f_j)`` for ``i != j``
     are co-prime and ``e_1 ... e_k`` are given in increasing order. All trivial
-    terms (i.e. ``f_i = 1``) aren't included in the output.
+    terms (i.e. ``f_i = 1``) are not included in the output.
 
     Consider polynomial ``f = x**11 + 1`` over ``GF(11)[x]``::
 
@@ -1587,7 +1588,7 @@ def gf_sqf_list(f, p, K, all=False):
        >>> gf_diff(f, 11, ZZ)
        []
 
-    This phenomenon doesn't happen in characteristic zero. However we can
+    This phenomenon does not happen in characteristic zero. However we can
     still compute square-free decomposition of ``f`` using ``gf_sqf()``::
 
        >>> gf_sqf_list(f, 11, ZZ)
@@ -1601,7 +1602,7 @@ def gf_sqf_list(f, p, K, all=False):
     References
     ==========
 
-    1. [Geddes92]_
+    .. [1] [Geddes92]_
 
     """
     n, sqf, factors, r = 1, False, [], int(p)
@@ -1827,8 +1828,8 @@ def gf_ddf_zassenhaus(f, p, K):
     References
     ==========
 
-    1. [Gathen99]_
-    2. [Geddes92]_
+    .. [1] [Gathen99]_
+    .. [2] [Geddes92]_
 
     """
     i, g, factors = 1, [K.one, K.zero], []
@@ -1871,14 +1872,21 @@ def gf_edf_zassenhaus(f, n, p, K):
        >>> gf_edf_zassenhaus([1,1,1,1], 1, 5, ZZ)
        [[1, 1], [1, 2], [1, 3]]
 
+    Notes
+    =====
+
+    The case p == 2 is handled by Cohen's Algorithm 3.4.8. The case p odd is
+    as in Geddes Algorithm 8.9 (or Cohen's Algorithm 3.4.6).
+
     References
     ==========
 
-    1. [Gathen99]_
-    2. [Geddes92]_
+    .. [1] [Gathen99]_
+    .. [2] [Geddes92]_ Algorithm 8.9
+    .. [3] [Cohen93]_ Algorithm 3.4.8
 
     """
-    factors, q = [f], int(p)
+    factors = [f]
 
     if gf_degree(f) <= n:
         return factors
@@ -1887,18 +1895,19 @@ def gf_edf_zassenhaus(f, n, p, K):
     if p != 2:
         b = gf_frobenius_monomial_base(f, p, K)
 
+    t = [K.one, K.zero]
     while len(factors) < N:
-        r = gf_random(2*n - 1, p, K)
-
         if p == 2:
-            h = r
+            h = r = t
 
-            for i in range(0, 2**(n*N - 1)):
+            for i in range(n - 1):
                 r = gf_pow_mod(r, 2, f, p, K)
                 h = gf_add(h, r, p, K)
 
             g = gf_gcd(f, h, p, K)
+            t += [K.zero, K.zero]
         else:
+            r = gf_random(2 * n - 1, p, K)
             h = _gf_pow_pnm1d2(r, n, f, b, p, K)
             g = gf_gcd(f, gf_sub_ground(h, K.one, p, K), p, K)
 
@@ -1936,9 +1945,9 @@ def gf_ddf_shoup(f, p, K):
     References
     ==========
 
-    1. [Kaltofen98]_
-    2. [Shoup95]_
-    3. [Gathen92]_
+    .. [1] [Kaltofen98]_
+    .. [2] [Shoup95]_
+    .. [3] [Gathen92]_
 
     """
     n = gf_degree(f)
@@ -2009,8 +2018,8 @@ def gf_edf_shoup(f, n, p, K):
     References
     ==========
 
-    1. [Shoup91]_
-    2. [Gathen92]_
+    .. [1] [Shoup91]_
+    .. [2] [Gathen92]_
 
     """
     N, q = gf_degree(f), int(p)
@@ -2153,7 +2162,7 @@ def gf_factor(f, p, K):
        >>> gf_factor(ZZ.map([5, 2, 7, 2]), 11, ZZ)
        (5, [([1, 2], 1), ([1, 8], 2)])
 
-    We arrived with factorization ``f = 5 (x + 2) (x + 8)**2``. We didn't
+    We arrived with factorization ``f = 5 (x + 2) (x + 8)**2``. We did not
     recover the exact form of the input polynomial because we requested to
     get monic factors of ``f`` and its leading coefficient separately.
 
@@ -2174,7 +2183,7 @@ def gf_factor(f, p, K):
     References
     ==========
 
-    1. [Gathen99]_
+    .. [1] [Gathen99]_
 
     """
     lc, f = gf_monic(f, p, K)
@@ -2228,8 +2237,10 @@ def linear_congruence(a, b, m):
 
     There are 3 solutions distinct mod(15) since gcd(a, m) = gcd(3, 15) = 3.
 
-    **Reference**
-    1) Wikipedia http://en.wikipedia.org/wiki/Linear_congruence_theorem
+    References
+    ==========
+
+    .. [1] https://en.wikipedia.org/wiki/Linear_congruence_theorem
 
     """
     from sympy.polys.polytools import gcdex
@@ -2338,11 +2349,12 @@ def gf_csolve(f, n):
     References
     ==========
 
-    [1] 'An introduction to the Theory of Numbers' 5th Edition by Ivan Niven,
-        Zuckerman and Montgomery.
+    .. [1] 'An introduction to the Theory of Numbers' 5th Edition by Ivan Niven,
+           Zuckerman and Montgomery.
 
     """
     from sympy.polys.domains import ZZ
+    from sympy.ntheory import factorint
     P = factorint(n)
     X = [csolve_prime(f, p, e) for p, e in P.items()]
     pools = list(map(tuple, X))
