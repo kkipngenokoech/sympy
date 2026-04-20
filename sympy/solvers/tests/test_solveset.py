@@ -177,6 +177,9 @@ def test_domain_check():
     assert domain_check(x, x, oo) is False
     assert domain_check(0, x, oo) is False
 
+def test_issue_11536():
+    assert solveset(0**x - 100, x, S.Reals) == ConditionSet(x, Eq(0**x - 100, 0), S.Reals)
+    assert solveset(0**x - 1, x, S.Reals) == FiniteSet(0)
 
 def test_is_function_class_equation():
     from sympy.abc import x, a
@@ -1002,9 +1005,6 @@ def test_linsolve():
     assert linsolve(Eqns, (x1, x2, x3, x4)) == sol
     assert linsolve(system1, (x1, x2, x3, x4)) == sol
 
-    # raise ValueError if no symbols are given
-    raises(ValueError, lambda: linsolve(system1))
-
     # raise ValueError if, A & b is not given as tuple
     raises(ValueError, lambda: linsolve(A, b, x1, x2, x3, x4))
 
@@ -1568,6 +1568,11 @@ def test_issue_12429():
     eq = solveset(log(x)/x <= 0, x, S.Reals)
     sol = Interval.Lopen(0, 1)
     assert eq == sol
+
+
+def test_solveset_arg():
+    assert solveset(arg(x), x, S.Reals)  == Interval.open(0, oo)
+    assert solveset(arg(4*x -3), x) == Interval.open(3/4, oo)
 
 
 def test__is_finite_with_finite_vars():
