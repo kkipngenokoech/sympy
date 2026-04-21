@@ -1,16 +1,15 @@
-from __future__ import print_function, division
-
 __all__ = ['Linearizer']
 
 from sympy.core.backend import Matrix, eye, zeros
+from sympy.core.compatibility import Iterable
 from sympy import Dummy
 from sympy.utilities.iterables import flatten
 from sympy.physics.vector import dynamicsymbols
 from sympy.physics.mechanics.functions import msubs
-import collections
 
+from collections import namedtuple
 
-class Linearizer(object):
+class Linearizer:
     """This object holds the general model form for a dynamic system.
     This model is used for computing the linearized form of the system,
     while properly dealing with constraints leading to  dependent
@@ -92,7 +91,7 @@ class Linearizer(object):
         o = len(self.u)
         s = len(self.r)
         k = len(self.lams)
-        dims = collections.namedtuple('dims', ['l', 'm', 'n', 'o', 's', 'k'])
+        dims = namedtuple('dims', ['l', 'm', 'n', 'o', 's', 'k'])
         self._dims = dims(l, m, n, o, s, k)
 
         self._setup_done = False
@@ -262,7 +261,7 @@ class Linearizer(object):
         # Compose dict of operating conditions
         if isinstance(op_point, dict):
             op_point_dict = op_point
-        elif isinstance(op_point, collections.Iterable):
+        elif isinstance(op_point, Iterable):
             op_point_dict = {}
             for op in op_point:
                 op_point_dict.update(op)

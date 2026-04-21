@@ -1,11 +1,9 @@
 """Implementation of :class:`QuotientRing` class."""
 
-from __future__ import print_function, division
 
+from sympy.polys.agca.modules import FreeModuleQuotientRing
 from sympy.polys.domains.ring import Ring
 from sympy.polys.polyerrors import NotReversible, CoercionFailed
-from sympy.polys.agca.modules import FreeModuleQuotientRing
-
 from sympy.utilities import public
 
 # TODO
@@ -14,7 +12,7 @@ from sympy.utilities import public
 # - division by non-units in integral domains?
 
 @public
-class QuotientRingElement(object):
+class QuotientRingElement:
     """
     Class representing elements of (commutative) quotient rings.
 
@@ -61,20 +59,16 @@ class QuotientRingElement(object):
 
     __rmul__ = __mul__
 
-    def __rdiv__(self, o):
+    def __rtruediv__(self, o):
         return self.ring.revert(self)*o
 
-    __rtruediv__ = __rdiv__
-
-    def __div__(self, o):
+    def __truediv__(self, o):
         if not isinstance(o, self.__class__):
             try:
                 o = self.ring.convert(o)
             except (NotImplementedError, CoercionFailed):
                 return NotImplemented
         return self.ring.revert(o)*self
-
-    __truediv__ = __div__
 
     def __pow__(self, oth):
         return self.ring(self.data**oth)
@@ -85,7 +79,7 @@ class QuotientRingElement(object):
         return self.ring.is_zero(self - om)
 
     def __ne__(self, om):
-        return not self.__eq__(om)
+        return not self == om
 
 
 class QuotientRing(Ring):
