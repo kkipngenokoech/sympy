@@ -3,11 +3,16 @@
 Inequality Solvers
 ==================
 
+For general cases :func:`~.reduce_inequalities` should be used.
+Other functions are the subcategories useful for special dedicated operations, and will be called internally as needed by ``reduce_inequalities``.
+
 .. module:: sympy.solvers.inequalities
 
 .. autofunction:: solve_rational_inequalities
 
 .. autofunction:: solve_poly_inequality
+
+.. autofunction:: solve_poly_inequalities
 
 .. autofunction:: reduce_rational_inequalities
 
