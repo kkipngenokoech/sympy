@@ -1,14 +1,11 @@
-from __future__ import print_function, division
-from mpmath.libmp import (fzero,
-    from_man_exp, from_int, from_rational,
+from mpmath.libmp import (fzero, from_int, from_rational,
     fone, fhalf, bitcount, to_int, to_str, mpf_mul, mpf_div, mpf_sub,
-    mpf_add, mpf_sqrt, mpf_pi, mpf_cosh_sinh, pi_fixed, mpf_cos,
-    mpf_sin)
+    mpf_add, mpf_sqrt, mpf_pi, mpf_cosh_sinh, mpf_cos, mpf_sin)
 from sympy.core.numbers import igcd
-import math
-from sympy.core.compatibility import range
 from .residue_ntheory import (_sqrt_mod_prime_power,
     legendre_symbol, jacobi_symbol, is_quad_residue)
+
+import math
 
 def _pre():
     maxn = 10**5
@@ -40,7 +37,7 @@ def _a(n, k, prec):
     References
     ==========
 
-    .. [1] http://msp.org/pjm/1956/6-1/pjm-v6-n1-p18-p.pdf
+    .. [1] https://msp.org/pjm/1956/6-1/pjm-v6-n1-p18-p.pdf
 
     """
     if k == 1:
@@ -146,7 +143,7 @@ def npartitions(n, verbose=False):
     P(n) is computed using the Hardy-Ramanujan-Rademacher formula [1]_.
 
 
-    The correctness of this implementation has been tested through 10**10.
+    The correctness of this implementation has been tested through $10^{10}$.
 
     Examples
     ========
@@ -158,7 +155,7 @@ def npartitions(n, verbose=False):
     References
     ==========
 
-    .. [1] http://mathworld.wolfram.com/PartitionFunctionP.html
+    .. [1] https://mathworld.wolfram.com/PartitionFunctionP.html
 
     """
     n = int(n)
