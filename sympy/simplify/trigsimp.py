@@ -10,7 +10,8 @@ from sympy.core.numbers import I, Integer
 from sympy.core.function import count_ops, _mexpand
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from sympy.functions.elementary.hyperbolic import HyperbolicFunction
-from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth
+from sympy.functions import sin, cos, exp, cosh, tanh, sinh, tan, cot, coth, sinc
+from sympy.core.function import expand_complex
 
 from sympy.strategies.core import identity
 from sympy.strategies.tree import greedy
@@ -425,6 +426,122 @@ def trigsimp_groebner(expr, hints=[], quick=False, order="grlex",
 _trigs = (TrigonometricFunction, HyperbolicFunction)
 
 
+def _exp_to_trig(expr):
+    """
+    Convert exponential expressions to trigonometric functions using Euler's formula.
+    
+    Recognizes patterns like:
+    - (exp(I*x) - exp(-I*x))/(2*I) -> sin(x)
+    - (exp(I*x) + exp(-I*x))/2 -> cos(x)
+    - (-I*exp(I*x) + I*exp(-I*x))/2 -> sin(x)
+    """
+    from sympy import collect, factor, simplify
+    
+    if not expr.has(exp):
+        return expr
+        
+    # Look for patterns in the expression
+    expr = expand_mul(expr)
+    
+    # Try to match sin pattern: (exp(I*x) - exp(-I*x))/(2*I) or equivalent forms
+    # Also match: (-I*exp(I*x) + I*exp(-I*x))/2
+    def _match_sin_pattern(e):
+        if e.is_Mul:
+            coeff = S.One
+            rest = S.One
+            for arg in e.args:
+                if arg.is_number:
+                    coeff *= arg
+                else:
+                    rest *= arg
+            e = rest
+            
+            # Check for (-I*exp(I*x) + I*exp(-I*x)) pattern
+            if e.is_Add and len(e.args) == 2:
+                arg1, arg2 = e.args
+                
+                # Pattern: -I*exp(I*x) + I*exp(-I*x)
+                if (arg1.is_Mul and arg2.is_Mul and 
+                    len(arg1.args) == 2 and len(arg2.args) == 2):
+                    
+                    # Check first term: -I*exp(I*x)
+                    if (arg1.args[0] == -I and arg1.args[1].func == exp and
+                        arg1.args[1].args[0].is_Mul and len(arg1.args[1].args[0].args) == 2 and
+                        arg1.args[1].args[0].args[0] == I):
+                        x1 = arg1.args[1].args[0].args[1]
+                        
+                        # Check second term: I*exp(-I*x)
+                        if (arg2.args[0] == I and arg2.args[1].func == exp and
+                            arg2.args[1].args[0].is_Mul and len(arg2.args[1].args[0].args) == 2 and
+                            arg2.args[1].args[0].args[0] == -I and
+                            arg2.args[1].args[0].args[1] == x1):
+                            
+                            # We have -I*exp(I*x) + I*exp(-I*x) = 2*sin(x)
+                            if coeff == S.Half:
+                                return sin(x1)
+                            elif coeff == S.Half / x1:
+                                return sinc(x1)
+                            else:
+                                return coeff * 2 * sin(x1)
+        
+        # Standard sin pattern: (exp(I*x) - exp(-I*x))/(2*I)
+        if e.is_Mul and len(e.args) == 2:
+            if e.args[0] == S.Half/I or e.args[0] == -I/2:
+                diff_expr = e.args[1]
+                if diff_expr.is_Add and len(diff_expr.args) == 2:
+                    term1, term2 = diff_expr.args
+                    if (term1.func == exp and term2.is_Mul and term2.args[0] == -1 and
+                        term2.args[1].func == exp):
+                        exp1_arg = term1.args[0]
+                        exp2_arg = term2.args[1].args[0]
+                        if (exp1_arg.is_Mul and len(exp1_arg.args) == 2 and
+                            exp1_arg.args[0] == I and
+                            exp2_arg.is_Mul and len(exp2_arg.args) == 2 and
+                            exp2_arg.args[0] == -I and
+                            exp1_arg.args[1] == exp2_arg.args[1]):
+                            x = exp1_arg.args[1]
+                            return sin(x)
+        
+        return None
+    
+    # Try to match cos pattern: (exp(I*x) + exp(-I*x))/2
+    def _match_cos_pattern(e):
+        if e.is_Mul and len(e.args) == 2 and e.args[0] == S.Half:
+            sum_expr = e.args[1]
+            if sum_expr.is_Add and len(sum_expr.args) == 2:
+                term1, term2 = sum_expr.args
+                if (term1.func == exp and term2.func == exp):
+                    exp1_arg = term1.args[0]
+                    exp2_arg = term2.args[0]
+                    if (exp1_arg.is_Mul and len(exp1_arg.args) == 2 and
+                        exp1_arg.args[0] == I and
+                        exp2_arg.is_Mul and len(exp2_arg.args) == 2 and
+                        exp2_arg.args[0] == -I and
+                        exp1_arg.args[1] == exp2_arg.args[1]):
+                        x = exp1_arg.args[1]
+                        return cos(x)
+        return None
+    
+    # Apply pattern matching
+    result = _match_sin_pattern(expr)
+    if result is not None:
+        return result
+        
+    result = _match_cos_pattern(expr)
+    if result is not None:
+        return result
+    
+    # If no patterns matched, recursively apply to subexpressions
+    if expr.is_Add:
+        return Add(*[_exp_to_trig(arg) for arg in expr.args])
+    elif expr.is_Mul:
+        return Mul(*[_exp_to_trig(arg) for arg in expr.args])
+    elif expr.is_Pow:
+        return expr.func(_exp_to_trig(expr.base), expr.exp)
+    else:
+        return expr
+
+
 def trigsimp(expr, **opts):
     """
     reduces expression by using known trig identities
@@ -513,12 +630,9 @@ def trigsimp(expr, **opts):
     return trigsimpfunc(expr)
 
 
-def exptrigsimp(expr, simplify=True):
+def exptrigsimp(expr):
     """
     Simplifies exponential / trigonometric / hyperbolic functions.
-    When ``simplify`` is True (default) the expression obtained after the
-    simplification step will be then be passed through simplify to
-    precondition it so the final transformations will be applied.
 
     Examples
     ========
@@ -544,35 +658,53 @@ def exptrigsimp(expr, simplify=True):
         return min(*choices, key=count_ops)
     newexpr = bottom_up(expr, exp_trig)
 
-    if simplify:
-        newexpr = newexpr.simplify()
+    def f(rv):
+        if not rv.is_Mul:
+            return rv
+        rvd = rv.as_powers_dict()
+        newd = rvd.copy()
 
-    # conversion from exp to hyperbolic
-    ex = newexpr.atoms(exp, S.Exp1)
-    ex = [ei for ei in ex if 1/ei not in ex]
-    ## sinh and cosh
-    for ei in ex:
-        e2 = ei**-2
-        if e2 in ex:
-            a = e2.args[0]/2 if not e2 is S.Exp1 else S.Half
-            newexpr = newexpr.subs((e2 + 1)*ei, 2*cosh(a))
-            newexpr = newexpr.subs((e2 - 1)*ei, 2*sinh(a))
-    ## exp ratios to tan and tanh
-    for ei in ex:
-        n, d = ei - 1, ei + 1
-        et = n/d
-        etinv = d/n  # not 1/et or else recursion errors arise
-        a = ei.args[0] if ei.func is exp else S.One
-        if a.is_Mul or a is S.ImaginaryUnit:
-            c = a.as_coefficient(I)
-            if c:
-                t = S.ImaginaryUnit*tan(c/2)
-                newexpr = newexpr.subs(etinv, 1/t)
-                newexpr = newexpr.subs(et, t)
-                continue
-        t = tanh(a/2)
-        newexpr = newexpr.subs(etinv, 1/t)
-        newexpr = newexpr.subs(et, t)
+        def signlog(expr, sign=1):
+            if expr is S.Exp1:
+                return sign, 1
+            elif isinstance(expr, exp):
+                return sign, expr.args[0]
+            elif sign == 1:
+                return signlog(-expr, sign=-1)
+            else:
+                return None, None
+
+        ee = rvd[S.Exp1]
+        for k in rvd:
+            if k.is_Add and len(k.args) == 2:
+                # k == c*(1 + sign*E**x)
+                c = k.args[0]
+                sign, x = signlog(k.args[1]/c)
+                if not x:
+                    continue
+                m = rvd[k]
+                newd[k] -= m
+                if ee == -x*m/2:
+                    # sinh and cosh
+                    newd[S.Exp1] -= ee
+                    ee = 0
+                    if sign == 1:
+                        newd[2*c*cosh(x/2)] += m
+                    else:
+                        newd[-2*c*sinh(x/2)] += m
+                elif newd[1 - sign*S.Exp1**x] == -m:
+                    # tanh
+                    del newd[1 - sign*S.Exp1**x]
+                    if sign == 1:
+                        newd[-c/tanh(x/2)] += m
+                    else:
+                        newd[-c*tanh(x/2)] += m
+                else:
+                    newd[1 + sign*S.Exp1**x] += m
+                    newd[c] += m
+
+        return Mul(*[k**newd[k] for k in newd])
+    newexpr = bottom_up(newexpr, f)
 
     # sin/cos and sinh/cosh ratios to tan and tanh, respectively
     if newexpr.has(HyperbolicFunction):
